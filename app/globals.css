@@ -36,7 +36,7 @@
   --mc-dim:     #252232;
 }
 
-html { background-color: #0b0910; color: #ddd8e8; }
+html { background-color: var(--mc-bg); color: var(--mc-hi); }
 
 body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
 
@@ -50,3 +50,4 @@ body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
   0%, 100% { transform: scaleY(1); }
   50%       { transform: scaleY(0.4); }
 }
+.animate-waveform { animation: waveform 1s ease-in-out infinite; }
