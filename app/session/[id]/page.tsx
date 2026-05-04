@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getDemoSession } from '@/lib/demo/demoSessions';
-import { getSession, deleteSession } from '@/lib/storage/localSessions';
+import { getSession } from '@/lib/storage/localSessions';
 import { SpotifyPlayer } from '@/components/player/SpotifyPlayer';
 import { NowPlayingBar } from '@/components/player/NowPlayingBar';
 import { SessionHero } from '@/components/session/SessionHero';
@@ -72,15 +72,9 @@ export default function SessionPage() {
     setPlayerError(msg);
   }, []);
 
-  const handlePlayPause = useCallback(() => {
-    // The SDK player handles this — we'd need a reference to it
-    // For now, no-op: the NowPlayingBar shows state but SDK manages playback
-  }, []);
-
   const startPlayback = useCallback(() => {
     if (!deviceId || !session) return;
-    const tracks = session.tracks as Array<{ uri?: string }>;
-    const uris = tracks.map((t) => t.uri).filter((u): u is string => Boolean(u));
+    const uris = session.tracks.map((t) => t.uri).filter((u): u is string => Boolean(u));
     if (uris.length === 0) return;
 
     fetch('/api/playback/start', {
@@ -188,7 +182,6 @@ export default function SessionPage() {
         <NowPlayingBar
           track={playerState.track_window.current_track}
           paused={playerState.paused}
-          onPlayPause={handlePlayPause}
         />
       )}
     </div>

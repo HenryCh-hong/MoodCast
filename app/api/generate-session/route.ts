@@ -1,6 +1,6 @@
 // app/api/generate-session/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getAccessToken } from '@/lib/spotify/auth';
+import { getValidAccessToken } from '@/lib/spotify/auth';
 import { buildTasteProfile } from '@/lib/spotify/taste';
 import { generateMoodcastSession } from '@/lib/ai/generateMoodcastSession';
 import { getRandomDemoSession } from '@/lib/demo/demoSessions';
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   // Try Spotify taste profile
   let tasteProfile = undefined;
-  const spotifyToken = await getAccessToken();
+  const spotifyToken = await getValidAccessToken();
   if (spotifyToken) {
     try {
       tasteProfile = await buildTasteProfile(spotifyToken);

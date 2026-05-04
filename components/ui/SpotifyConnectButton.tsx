@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 
 interface SpotifyProfile {
   connected: boolean;
@@ -46,8 +47,14 @@ export function SpotifyConnectButton() {
         className="flex items-center gap-2 text-[10px] font-bold tracking-tight text-mc-mid hover:text-mc-hi transition-colors"
       >
         {profile.avatar && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.avatar} alt="" className="w-5 h-5 rounded-full" />
+          <Image
+            src={profile.avatar}
+            alt=""
+            width={20}
+            height={20}
+            className="rounded-full"
+            unoptimized
+          />
         )}
         <span>{profile.name}</span>
         {profile.isPremium && (

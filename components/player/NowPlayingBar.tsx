@@ -12,7 +12,7 @@ interface NowPlayingTrack {
 interface NowPlayingBarProps {
   track: NowPlayingTrack | null;
   paused: boolean;
-  onPlayPause: () => void;
+  onPlayPause?: () => void;  // optional
 }
 
 export function NowPlayingBar({ track, paused, onPlayPause }: NowPlayingBarProps) {
@@ -37,13 +37,15 @@ export function NowPlayingBar({ track, paused, onPlayPause }: NowPlayingBarProps
         <p className="text-[13px] font-bold tracking-tight text-mc-hi truncate">{track.name}</p>
         <p className="text-[11px] font-bold tracking-tight text-mc-lo truncate">{artistNames}</p>
       </div>
-      <button
-        onClick={onPlayPause}
-        className="w-8 h-8 rounded-full border border-mc-border flex items-center justify-center text-mc-mid hover:text-mc-hi hover:border-mc-mid transition-colors"
-        aria-label={paused ? 'Play' : 'Pause'}
-      >
-        {paused ? '▶' : '⏸'}
-      </button>
+      {onPlayPause && (
+        <button
+          onClick={onPlayPause}
+          className="w-8 h-8 rounded-full border border-mc-border flex items-center justify-center text-mc-mid hover:text-mc-hi hover:border-mc-mid transition-colors"
+          aria-label={paused ? 'Play' : 'Pause'}
+        >
+          {paused ? '▶' : '⏸'}
+        </button>
+      )}
     </div>
   );
 }

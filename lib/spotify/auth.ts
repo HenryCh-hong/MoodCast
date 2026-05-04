@@ -73,6 +73,27 @@ export async function getAccessToken(): Promise<string | null> {
   return jar.get('spotify_access_token')?.value ?? null;
 }
 
+export async function getValidAccessToken(): Promise<string | null> {
+  const jar = await cookies();
+  const accessToken = jar.get('spotify_access_token')?.value ?? null;
+  const expiresAt = Number(jar.get('spotify_expires_at')?.value ?? '0');
+  const refreshToken = jar.get('spotify_refresh_token')?.value ?? null;
+
+  if (!refreshToken) return null;
+
+  // Refresh 60 seconds before expiry to avoid edge-case expiry mid-request
+  if (accessToken && Date.now() < expiresAt - 60_000) return accessToken;
+
+  // Need to refresh
+  try {
+    const tokens = await refreshAccessToken(refreshToken);
+    await setTokenCookies(tokens.access_token, refreshToken, tokens.expires_in);
+    return tokens.access_token;
+  } catch {
+    return null;
+  }
+}
+
 export async function setTokenCookies(
   accessToken: string,
   refreshToken: string,

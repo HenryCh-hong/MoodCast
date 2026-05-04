@@ -29,6 +29,10 @@ export function AskDJPanel({ session }: AskDJPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session, question: q }),
       });
+      if (!res.ok) {
+        setResponse('The DJ is off-air right now. Try again.');
+        return;
+      }
       const data = await res.json() as { djMessage: string };
       setResponse(data.djMessage);
     } finally {

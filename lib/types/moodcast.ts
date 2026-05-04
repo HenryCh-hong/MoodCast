@@ -7,6 +7,8 @@ export interface Track {
   energy: 'low' | 'medium' | 'high';
   whyItFits: string;
   transitionLine: string;
+  uri?: string;   // Spotify track URI, present when generated with Spotify
+  id?: string;    // Spotify track ID
 }
 
 export interface SessionArcPhase {
@@ -32,16 +34,6 @@ export interface SavedSession extends MoodcastSession {
   isDemo?: boolean;
   demoId?: string;
   spotifyConnected?: boolean;
-}
-
-export interface BuilderFormData {
-  mood: string;
-  activity: string;
-  energy: string;
-  length: string;
-  musicTaste: string;
-  songList: string;
-  djStyle: string;
 }
 
 export interface SpotifyTrack {
@@ -72,8 +64,6 @@ export interface BroadcastFormData {
   seedArtists?: string;
   seedTracks?: string;
 }
-
-export type GenerateSessionRequest = BuilderFormData;
 
 export type GenerateSessionResponse =
   | { session: MoodcastSession; isDemo: false }

@@ -1,10 +1,10 @@
 // app/api/auth/me/route.ts
 import { NextResponse } from 'next/server';
-import { getAccessToken } from '@/lib/spotify/auth';
+import { getValidAccessToken } from '@/lib/spotify/auth';
 import { spotifyFetch } from '@/lib/spotify/client';
 
 export async function GET() {
-  const token = await getAccessToken();
+  const token = await getValidAccessToken();
   if (!token) return NextResponse.json({ connected: false });
 
   try {
