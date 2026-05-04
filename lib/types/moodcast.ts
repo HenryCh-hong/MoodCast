@@ -30,6 +30,7 @@ export interface SavedSession extends MoodcastSession {
   id: string;
   createdAt: string;
   isDemo?: boolean;
+  spotifyConnected?: boolean;
 }
 
 export interface BuilderFormData {
@@ -40,6 +41,35 @@ export interface BuilderFormData {
   musicTaste: string;
   songList: string;
   djStyle: string;
+}
+
+export interface SpotifyTrack {
+  uri: string;
+  id: string;
+  title: string;
+  artist: string;
+  albumName: string;
+  albumArt: string;
+  durationMs: number;
+}
+
+export interface TasteProfile {
+  topArtists: Array<{ name: string; genres: string[] }>;
+  topTracks: Array<{ title: string; artist: string; uri: string }>;
+  recentTracks: Array<{ title: string; artist: string; uri: string }>;
+}
+
+export interface SpotifySession extends Omit<MoodcastSession, 'tracks'> {
+  tracks: SpotifyTrack[];
+}
+
+export interface BroadcastFormData {
+  prompt: string;
+  activity: string;
+  length: string;
+  direction: string;
+  seedArtists?: string;
+  seedTracks?: string;
 }
 
 export interface GenerateSessionRequest extends BuilderFormData {}
@@ -58,4 +88,9 @@ export interface AskDJRequest {
 export interface AskDJResponse {
   session: MoodcastSession;
   djMessage: string;
+}
+
+export interface GenerateBroadcastRequest {
+  form: BroadcastFormData;
+  tasteProfile?: TasteProfile;
 }
