@@ -1,42 +1,97 @@
 // components/landing/OpenSourceSection.tsx
 const BADGES = [
-  { label: 'Self-hostable' },
-  { label: 'BYOK' },
-  { label: 'No music hosting' },
-  { label: 'No account required' },
-  { label: 'MIT License' },
+  'Self-hostable',
+  'BYOK',
+  'No music hosting',
+  'No account required',
+  'MIT License',
+  'Demo mode included',
 ];
 
 export function OpenSourceSection() {
   return (
-    <section className="px-6 py-16 max-w-6xl mx-auto border-t border-mc-border">
-      <div className="max-w-xl">
-        <p className="text-[9px] font-mono font-bold tracking-[0.18em] uppercase text-mc-lo mb-6">
-          Open source · BYOK
-        </p>
-        <h2 className="text-2xl font-bold tracking-tight mb-4">
-          Your key. Your cost. Your data.
-        </h2>
-        <p className="text-mc-mid text-sm leading-relaxed mb-8">
-          Moodcast is local-first and BYOK. You provide your own Anthropic API key —
-          the project author does not pay for your generations, and your sessions
-          never leave your machine. No database, no accounts, no subscription.
-        </p>
-        <div className="flex flex-wrap gap-2 mb-8">
-          {BADGES.map((b) => (
-            <span
-              key={b.label}
-              className="text-[10px] font-mono tracking-[0.08em] px-3 py-1 rounded border border-mc-border text-mc-lo"
-            >
-              {b.label}
-            </span>
-          ))}
+    <section className="px-6 py-14 max-w-6xl mx-auto border-t border-mc-border">
+      {/* Section header with rule */}
+      <div className="flex items-center gap-4 mb-12">
+        <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-mc-lo whitespace-nowrap">
+          Open Source · BYOK
+        </span>
+        <span className="flex-1 h-px bg-mc-border" />
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-12 items-start">
+        {/* Left: copy + badges */}
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight mb-4">
+            Your key. Your cost. Your data.
+          </h2>
+          <p className="text-mc-mid text-sm leading-relaxed mb-7">
+            Moodcast is local-first and BYOK. You provide your own Anthropic API key —
+            the project author does not pay for your generations, and your sessions
+            never leave your machine. No database, no accounts, no subscription.
+            No key? Demo mode activates automatically.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {BADGES.map((b) => (
+              <span
+                key={b}
+                className="font-mono text-[9px] tracking-[0.1em] uppercase px-3 py-1.5 rounded border border-mc-border text-mc-lo"
+              >
+                {b}
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="bg-mc-elevated border border-mc-border rounded-lg p-4 font-mono text-xs text-mc-mid space-y-1">
-          <p><span className="text-mc-lo">$</span> git clone https://github.com/your-org/moodcast</p>
-          <p><span className="text-mc-lo">$</span> cp .env.example .env.local</p>
-          <p><span className="text-mc-lo">$</span> <span className="text-mc-lav"># add ANTHROPIC_API_KEY to .env.local</span></p>
-          <p><span className="text-mc-lo">$</span> npm install && npm run dev</p>
+
+        {/* Right: terminal setup block */}
+        <div className="bg-mc-elevated border border-mc-border rounded-lg overflow-hidden font-mono text-xs">
+          {/* Chrome */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-mc-border">
+            <span className="text-mc-lo text-[9px] tracking-[0.1em]">setup</span>
+            <span className="text-mc-lo text-[9px]">~5 min</span>
+          </div>
+
+          {/* Commands */}
+          <div className="p-4 space-y-1.5 text-mc-mid">
+            <p>
+              <span className="text-mc-lo">$</span>{' '}
+              git clone https://github.com/your-org/moodcast
+            </p>
+            <p>
+              <span className="text-mc-lo">$</span>{' '}
+              cd moodcast
+            </p>
+            <p>
+              <span className="text-mc-lo">$</span>{' '}
+              npm install
+            </p>
+            <p>
+              <span className="text-mc-lo">$</span>{' '}
+              cp .env.example .env.local
+            </p>
+            <p className="text-mc-lav">
+              <span className="text-mc-lo">#</span>{' '}
+              add ANTHROPIC_API_KEY to .env.local
+            </p>
+            <p>
+              <span className="text-mc-lo">$</span>{' '}
+              npm run dev
+            </p>
+          </div>
+
+          {/* Status block */}
+          <div className="px-4 pb-4 pt-1 space-y-1">
+            <div className="border-t border-mc-border pt-3 space-y-1">
+              <p>
+                <span className="text-mc-sage">●</span>{' '}
+                <span className="text-mc-mid">ready on localhost:3000</span>
+              </p>
+              <p className="text-mc-lo">
+                no key?{' '}
+                <span className="text-mc-lav">demo mode activates automatically.</span>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
