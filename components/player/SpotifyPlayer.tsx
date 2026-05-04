@@ -33,8 +33,20 @@ interface SpotifyPlayerProps {
 
 export function SpotifyPlayer({ onReady, onStateChange, onError }: SpotifyPlayerProps) {
   useEffect(() => {
+    type SpotifySDKWindow = Window & { Spotify: { Player: new (options: {
+      name: string;
+      getOAuthToken: (cb: (token: string) => void) => void;
+      volume: number;
+    }) => {
+      connect: () => Promise<boolean>;
+      addListener: (event: string, cb: (data: unknown) => void) => void;
+      disconnect: () => void;
+    } } };
+
+    let playerInstance: { disconnect: () => void } | null = null;
+
     // Assign SDK ready callback before loading the script
-    (window as Window & { onSpotifyWebPlaybackSDKReady?: () => void }).onSpotifyWebPlaybackSDKReady = async () => {
+    (window as unknown as SpotifySDKWindow & { onSpotifyWebPlaybackSDKReady?: () => void }).onSpotifyWebPlaybackSDKReady = async () => {
       const res = await fetch('/api/auth/spotify/token');
       if (!res.ok) {
         onError('Not authenticated with Spotify');
@@ -42,15 +54,6 @@ export function SpotifyPlayer({ onReady, onStateChange, onError }: SpotifyPlayer
       }
       const { token } = await res.json() as { token: string };
 
-      type SpotifySDKWindow = Window & { Spotify: { Player: new (options: {
-        name: string;
-        getOAuthToken: (cb: (token: string) => void) => void;
-        volume: number;
-      }) => {
-        connect: () => Promise<boolean>;
-        addListener: (event: string, cb: (data: unknown) => void) => void;
-        disconnect: () => void;
-      } } };
       const player = new (window as unknown as SpotifySDKWindow).Spotify.Player({
         name: 'Moodcast',
         getOAuthToken: (cb) => cb(token),
@@ -78,6 +81,7 @@ export function SpotifyPlayer({ onReady, onStateChange, onError }: SpotifyPlayer
         onError('Spotify Premium is required for playback');
       });
 
+      playerInstance = player;
       await player.connect();
     };
 
@@ -87,7 +91,11 @@ export function SpotifyPlayer({ onReady, onStateChange, onError }: SpotifyPlayer
     document.body.appendChild(script);
 
     return () => {
-      document.body.removeChild(script);
+      playerInstance?.disconnect();
+      delete (window as unknown as { onSpotifyWebPlaybackSDKReady?: () => void }).onSpotifyWebPlaybackSDKReady;
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
     };
   }, [onReady, onStateChange, onError]);
 
