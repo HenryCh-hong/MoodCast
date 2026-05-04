@@ -32,8 +32,8 @@ export async function generateMoodcastSession({ form, tasteProfile }: GenerateOp
   });
 
   const rawText = message.content
-    .filter((block) => block.type === 'text')
-    .map((block) => (block as { type: 'text'; text: string }).text)
+    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+    .map((block) => block.text)
     .join('');
 
   // Strip markdown code fences if present

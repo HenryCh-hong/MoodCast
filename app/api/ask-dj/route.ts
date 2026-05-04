@@ -17,8 +17,13 @@ export async function POST(req: NextRequest) {
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 512,
-    system:
-      "You are Moodcast DJ. Answer the user's question about their session in 1-3 sentences. Stay in character: calm, warm, specific. Never use the word \"vibe\".",
+    system: [
+      {
+        type: 'text',
+        text: 'You are Moodcast DJ. Answer the user\'s question about their session in 1-3 sentences. Stay in character: calm, warm, specific. Never use the word "vibe".',
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
     messages: [
       {
         role: 'user',
@@ -28,8 +33,8 @@ export async function POST(req: NextRequest) {
   });
 
   const text = message.content
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as { type: 'text'; text: string }).text)
+    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+    .map((b) => b.text)
     .join('');
 
   return NextResponse.json({ djMessage: text });
