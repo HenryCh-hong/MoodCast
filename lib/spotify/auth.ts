@@ -1,6 +1,12 @@
 // lib/spotify/auth.ts
 import { cookies } from 'next/headers';
 
+function requireEnv(name: string): string {
+  const val = process.env[name];
+  if (!val) throw new Error(`Missing required environment variable: ${name}`);
+  return val;
+}
+
 const SCOPES = [
   'user-read-email',
   'user-read-private',
@@ -13,9 +19,9 @@ const SCOPES = [
 
 export function getSpotifyAuthUrl(state: string, codeChallenge: string): string {
   const params = new URLSearchParams({
-    client_id: process.env.SPOTIFY_CLIENT_ID!,
+    client_id: requireEnv('SPOTIFY_CLIENT_ID'),
     response_type: 'code',
-    redirect_uri: process.env.SPOTIFY_REDIRECT_URI!,
+    redirect_uri: requireEnv('SPOTIFY_REDIRECT_URI'),
     state,
     scope: SCOPES,
     code_challenge_method: 'S256',
@@ -31,8 +37,8 @@ export async function exchangeCode(code: string, codeVerifier: string) {
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: process.env.SPOTIFY_REDIRECT_URI!,
-      client_id: process.env.SPOTIFY_CLIENT_ID!,
+      redirect_uri: requireEnv('SPOTIFY_REDIRECT_URI'),
+      client_id: requireEnv('SPOTIFY_CLIENT_ID'),
       code_verifier: codeVerifier,
     }),
   });
@@ -50,7 +56,7 @@ export async function refreshAccessToken(refreshToken: string) {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Authorization: `Basic ${Buffer.from(
-        `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
+        `${requireEnv('SPOTIFY_CLIENT_ID')}:${requireEnv('SPOTIFY_CLIENT_SECRET')}`
       ).toString('base64')}`,
     },
     body: new URLSearchParams({
@@ -82,6 +88,6 @@ export async function setTokenCookies(
     sameSite: 'lax', maxAge: 60 * 60 * 24 * 60,
   });
   jar.set('spotify_expires_at', String(Date.now() + expiresIn * 1000), {
-    httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24 * 60,
+    httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 60 * 60 * 24 * 60,
   });
 }

@@ -16,8 +16,8 @@ export async function GET() {
   const state = base64URLEncode(crypto.randomBytes(16));
 
   const jar = await cookies();
-  jar.set('spotify_code_verifier', codeVerifier, { httpOnly: true, sameSite: 'lax', maxAge: 300 });
-  jar.set('spotify_state', state, { httpOnly: true, sameSite: 'lax', maxAge: 300 });
+  jar.set('spotify_code_verifier', codeVerifier, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 300 });
+  jar.set('spotify_state', state, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 300 });
 
   return NextResponse.redirect(getSpotifyAuthUrl(state, codeChallenge));
 }

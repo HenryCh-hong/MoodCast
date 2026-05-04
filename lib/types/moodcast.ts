@@ -72,13 +72,11 @@ export interface BroadcastFormData {
   seedTracks?: string;
 }
 
-export interface GenerateSessionRequest extends BuilderFormData {}
+export type GenerateSessionRequest = BuilderFormData;
 
-export interface GenerateSessionResponse {
-  session: MoodcastSession;
-  isDemo: boolean;
-  demoId?: string; // present when isDemo is true — the hardcoded demo session ID
-}
+export type GenerateSessionResponse =
+  | { session: MoodcastSession; isDemo: false }
+  | { session: MoodcastSession; isDemo: true; demoId: string };
 
 export interface AskDJRequest {
   session: MoodcastSession;
