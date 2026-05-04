@@ -34,10 +34,12 @@ export function HowItWorks() {
               <span className="text-[9px] text-mc-lav tracking-[0.12em]">{step.num}</span>
               <span className="flex-1 h-px bg-mc-border" />
             </div>
-            <h3 className="text-sm font-semibold text-mc-hi mb-2 tracking-tight">
+            <h3 className="text-sm font-bold tracking-tight text-mc-hi mb-2">
               {step.title}
             </h3>
-            <p className="text-[13px] text-mc-mid leading-[1.75]">{step.body}</p>
+            <p className="text-[13px] font-bold tracking-tight text-mc-mid leading-[1.65]">
+              {step.body}
+            </p>
           </div>
         ))}
       </div>

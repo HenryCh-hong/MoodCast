@@ -23,7 +23,7 @@ export function OpenSourceSection() {
           <h2 className="text-xl font-bold tracking-tight mb-4">
             Your key. Your cost. Your data.
           </h2>
-          <p className="text-[13px] text-mc-mid leading-[1.75] mb-7">
+          <p className="text-[13px] font-bold tracking-tight text-mc-mid leading-[1.65] mb-7">
             Moodcast is local-first and BYOK. You provide your own Anthropic API
             key — the project author does not pay for your generations, and your
             sessions never leave your machine. No database, no accounts, no
@@ -33,7 +33,7 @@ export function OpenSourceSection() {
             {BADGES.map((b) => (
               <span
                 key={b}
-                className="text-[9px] tracking-[0.1em] uppercase px-3 py-1.5 rounded border border-mc-border text-mc-lo"
+                className="text-[9px] font-bold tracking-tight uppercase px-3 py-1.5 rounded border border-mc-border text-mc-lo"
               >
                 {b}
               </span>

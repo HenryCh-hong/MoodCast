@@ -46,20 +46,18 @@ export function ExampleSessionCard() {
               <span>{s.length}</span>
             </p>
 
-            <h3 className="text-sm font-semibold text-mc-hi leading-tight mb-1 tracking-tight group-hover:text-mc-lav transition-colors">
+            <h3 className="text-sm font-bold tracking-tight text-mc-hi leading-tight mb-1 group-hover:text-mc-lav transition-colors">
               {s.title}
             </h3>
-            <p className="text-[10px] text-mc-lo mb-4">{s.tags}</p>
+            <p className="text-[10px] font-bold tracking-tight text-mc-lo mb-4">{s.tags}</p>
 
             <div className="flex items-center gap-2 pt-3 border-t border-mc-border">
-              <span className="text-[9px] text-mc-lav font-bold">
-                {s.nowPlaying.label}
-              </span>
+              <span className="text-[9px] font-bold text-mc-lav">{s.nowPlaying.label}</span>
               <div className="min-w-0">
-                <p className="text-[11px] font-medium text-mc-mid truncate">
+                <p className="text-[11px] font-bold tracking-tight text-mc-mid truncate">
                   {s.nowPlaying.track}
                 </p>
-                <p className="text-[9px] text-mc-lo">{s.nowPlaying.artist}</p>
+                <p className="text-[9px] font-bold tracking-tight text-mc-lo">{s.nowPlaying.artist}</p>
               </div>
             </div>
           </a>

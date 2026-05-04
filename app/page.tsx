@@ -11,7 +11,7 @@ export default function LandingPage() {
       <ExampleSessionCard />
       <HowItWorks />
       <OpenSourceSection />
-      <footer className="border-t border-mc-border px-6 py-8 text-center text-[11px] font-mono text-mc-dim">
+      <footer className="border-t border-mc-border px-6 py-8 text-center text-[11px] font-bold tracking-tight text-mc-dim">
         Moodcast does not stream, host, or distribute music. Track suggestions are AI-generated text only.
       </footer>
     </>
