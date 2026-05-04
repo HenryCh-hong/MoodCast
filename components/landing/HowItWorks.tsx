@@ -20,9 +20,8 @@ const STEPS = [
 export function HowItWorks() {
   return (
     <section className="px-6 py-14 max-w-6xl mx-auto border-t border-mc-border">
-      {/* Section header with rule */}
       <div className="flex items-center gap-4 mb-12">
-        <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-mc-lo whitespace-nowrap">
+        <span className="text-[9px] tracking-[0.2em] uppercase text-mc-lo whitespace-nowrap">
           Session Protocol
         </span>
         <span className="flex-1 h-px bg-mc-border" />
@@ -32,13 +31,13 @@ export function HowItWorks() {
         {STEPS.map((step) => (
           <div key={step.num}>
             <div className="flex items-center gap-3 mb-4">
-              <span className="font-mono text-[9px] text-mc-lav tracking-[0.12em]">
-                {step.num}
-              </span>
+              <span className="text-[9px] text-mc-lav tracking-[0.12em]">{step.num}</span>
               <span className="flex-1 h-px bg-mc-border" />
             </div>
-            <h3 className="text-base font-semibold text-mc-hi mb-2">{step.title}</h3>
-            <p className="text-sm text-mc-mid leading-relaxed">{step.body}</p>
+            <h3 className="text-sm font-semibold text-mc-hi mb-2 tracking-tight">
+              {step.title}
+            </h3>
+            <p className="text-[13px] text-mc-mid leading-[1.75]">{step.body}</p>
           </div>
         ))}
       </div>

@@ -38,7 +38,8 @@
 
 html { background-color: var(--mc-bg); color: var(--mc-hi); }
 
-body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
+/* Mono is the primary voice. Use font-sans only for prose/emotional copy (DJ monologue). */
+body { font-family: var(--font-geist-mono), monospace; }
 
 @keyframes breathe {
   0%, 100% { box-shadow: 0 0 5px #e0555555; }

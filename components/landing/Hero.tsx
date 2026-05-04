@@ -83,11 +83,11 @@ export function Hero() {
             {/* Left: headline + copy + CTAs */}
             <div className="px-7 py-8 flex flex-col justify-between gap-8">
               <div className="space-y-5">
-                <h1 className="text-4xl xl:text-[2.75rem] font-extrabold tracking-[-0.03em] leading-[1.07]">
+                <h1 className="font-mono font-bold text-4xl xl:text-[2.75rem] tracking-tight leading-[1.1]">
                   Turn the feeling<br />
                   into a signal.
                 </h1>
-                <p className="text-mc-mid text-[15px] leading-relaxed">
+                <p className="text-mc-mid text-[14px] leading-[1.75]">
                   Open-source AI radio sessions, tuned to your mood.
                   An AI DJ writes the opening, curates the queue, and
                   connects every track.
@@ -130,7 +130,8 @@ export function Hero() {
                   </p>
                   <WaveformStrip />
                 </div>
-                <p className="text-[13px] text-mc-mid italic leading-[1.72]">
+                {/* DJ voice — explicitly sans italic, contrasts with the mono system */}
+                <p className="font-sans text-[13px] text-mc-mid italic leading-[1.72]">
                   &ldquo;It&rsquo;s late. The screen is still too bright, and
                   you&rsquo;ve got one more thing to finish — the kind of thing
                   that keeps you up not because it has to, but because you need
