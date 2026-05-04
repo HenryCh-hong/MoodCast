@@ -1,6 +1,7 @@
 // components/layout/Navbar.tsx
 import Link from 'next/link';
 import { OnAirDot } from '@/components/ui/OnAirDot';
+import { SpotifyConnectButton } from '@/components/ui/SpotifyConnectButton';
 
 export function Navbar() {
   return (
@@ -21,6 +22,7 @@ export function Navbar() {
         <nav className="flex items-center gap-5 text-[10px] tracking-[0.1em] uppercase text-mc-lo">
           <Link href="/builder" className="hover:text-mc-mid transition-colors">New Session</Link>
           <Link href="/saved" className="hover:text-mc-mid transition-colors">Saved</Link>
+          <SpotifyConnectButton />
           <a
             href="https://github.com/your-org/moodcast"
             target="_blank"
