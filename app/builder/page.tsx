@@ -21,15 +21,18 @@ export default function BuilderPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error('Generation failed');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Server error ${res.status}`);
+      }
       const data: GenerateSessionResponse = await res.json();
       const sessionId = data.isDemo ? data.demoId : generateId();
       if (!data.isDemo) {
         saveSession({ id: sessionId, ...data.session, createdAt: new Date().toISOString() });
       }
       router.push(`/session/${sessionId}`);
-    } catch {
-      setError('Could not reach the session engine. Check your API key in .env.local.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not reach the session engine.');
       setIsScanning(false);
     }
   }
