@@ -30,6 +30,7 @@ export interface SavedSession extends MoodcastSession {
   id: string;
   createdAt: string;
   isDemo?: boolean;
+  demoId?: string;
   spotifyConnected?: boolean;
 }
 
