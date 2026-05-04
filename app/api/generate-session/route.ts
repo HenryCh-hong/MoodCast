@@ -9,8 +9,8 @@ import type { BroadcastFormData } from '@/lib/types/moodcast';
 export async function POST(req: NextRequest) {
   const form = (await req.json()) as BroadcastFormData;
 
-  // Demo mode — no API key
-  if (!process.env.ANTHROPIC_API_KEY) {
+  // Demo mode — no AI key configured
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GOOGLE_API_KEY) {
     const demo = getRandomDemoSession();
     return NextResponse.json({ session: demo, isDemo: true, demoId: demo.id });
   }
