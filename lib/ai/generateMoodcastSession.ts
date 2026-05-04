@@ -53,7 +53,7 @@ async function generateWithClaude(form: BroadcastFormData, tasteProfile?: TasteP
 async function generateWithGemini(form: BroadcastFormData, tasteProfile?: TasteProfile): Promise<MoodcastSession> {
   const genai = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
   const model = genai.getGenerativeModel({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.5-flash',
     systemInstruction: buildSystemPrompt(tasteProfile),
   });
 

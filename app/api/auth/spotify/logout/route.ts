@@ -6,5 +6,7 @@ export async function GET(req: NextRequest) {
   jar.delete('spotify_access_token');
   jar.delete('spotify_refresh_token');
   jar.delete('spotify_expires_at');
-  return NextResponse.redirect(new URL('/', req.url));
+  const redirectUri = process.env.SPOTIFY_REDIRECT_URI ?? 'http://127.0.0.1:3001/api/auth/spotify/callback';
+  const origin = new URL(redirectUri).origin;
+  return NextResponse.redirect(`${origin}/`);
 }
