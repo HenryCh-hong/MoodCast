@@ -77,16 +77,15 @@ Select tracks from this pool whenever possible. Use the URIs exactly as listed.`
 }
 
 export function buildUserPrompt(form: BroadcastFormData): string {
-  const seedArtistsLine = form.seedArtists ? `Seed artists: ${form.seedArtists}` : '';
-  const seedTracksLine = form.seedTracks ? `Seed tracks:\n${form.seedTracks}` : '';
-  const extras = [seedArtistsLine, seedTracksLine].filter(Boolean).join('\n');
+  const parts: string[] = [
+    `Mood: ${form.mood || 'not specified — infer from activity and direction'}`,
+    `Activity: ${form.activity || 'not specified'}`,
+    `Session length: ${form.length || '60m'}`,
+    `Direction: ${form.direction || 'stay'}`,
+  ];
+  if (form.prompt) parts.push(`Note from user: ${form.prompt}`);
+  if (form.seedArtists) parts.push(`Seed artists: ${form.seedArtists}`);
+  if (form.seedTracks) parts.push(`Seed tracks:\n${form.seedTracks}`);
 
-  return `Generate a Moodcast session for:
-Prompt: ${form.prompt}
-Activity: ${form.activity}
-Session length: ${form.length}
-Direction: ${form.direction}
-${extras}
-
-Respond with the JSON only. No explanation outside the JSON.`.trim();
+  return `Generate a Moodcast session for:\n${parts.join('\n')}\n\nRespond with the JSON only. No explanation outside the JSON.`;
 }

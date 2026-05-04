@@ -1,27 +1,19 @@
-// components/builder/SignalChips.tsx
 import { cn } from '@/lib/utils';
 
 export interface SignalChipsProps {
+  mood: string;
   activity: string;
   length: string;
   direction: string;
+  onMoodChange: (v: string) => void;
   onActivityChange: (v: string) => void;
   onLengthChange: (v: string) => void;
   onDirectionChange: (v: string) => void;
 }
 
-const ACTIVITY_OPTIONS = [
-  'coding',
-  'reading',
-  'creating',
-  'chilling',
-  'gaming',
-  'studying',
-  'working out',
-];
-
+const MOOD_OPTIONS = ['chill', 'focused', 'melancholic', 'energetic', 'late-night', 'morning', 'creative'];
+const ACTIVITY_OPTIONS = ['coding', 'reading', 'creating', 'chilling', 'gaming', 'studying', 'working out'];
 const LENGTH_OPTIONS = ['30m', '60m', '90m', '120m', '∞'];
-
 const DIRECTION_OPTIONS = ['stay', 'lift', 'soften', 'focus', 'drift'];
 
 interface ChipRowProps {
@@ -57,33 +49,21 @@ function ChipRow({ label, options, value, onChange }: ChipRowProps) {
 }
 
 export function SignalChips({
+  mood,
   activity,
   length,
   direction,
+  onMoodChange,
   onActivityChange,
   onLengthChange,
   onDirectionChange,
 }: SignalChipsProps) {
   return (
     <div className="flex flex-col gap-3">
-      <ChipRow
-        label="ACTIVITY"
-        options={ACTIVITY_OPTIONS}
-        value={activity}
-        onChange={onActivityChange}
-      />
-      <ChipRow
-        label="SESSION"
-        options={LENGTH_OPTIONS}
-        value={length}
-        onChange={onLengthChange}
-      />
-      <ChipRow
-        label="DIRECTION"
-        options={DIRECTION_OPTIONS}
-        value={direction}
-        onChange={onDirectionChange}
-      />
+      <ChipRow label="MOOD" options={MOOD_OPTIONS} value={mood} onChange={onMoodChange} />
+      <ChipRow label="ACTIVITY" options={ACTIVITY_OPTIONS} value={activity} onChange={onActivityChange} />
+      <ChipRow label="SESSION" options={LENGTH_OPTIONS} value={length} onChange={onLengthChange} />
+      <ChipRow label="DIRECTION" options={DIRECTION_OPTIONS} value={direction} onChange={onDirectionChange} />
     </div>
   );
 }

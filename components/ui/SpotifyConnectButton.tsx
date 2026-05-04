@@ -21,14 +21,7 @@ export function SpotifyConnectButton() {
       .catch(() => setProfile({ connected: false }));
   }, []);
 
-  if (profile === null) {
-    // Loading state — subtle placeholder
-    return (
-      <div className="w-20 h-5 rounded bg-mc-elevated animate-pulse" />
-    );
-  }
-
-  if (!profile.connected) {
+  if (!profile || !profile.connected) {
     return (
       <a
         href="/api/auth/spotify"

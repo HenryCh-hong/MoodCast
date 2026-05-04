@@ -57,10 +57,11 @@ export interface SpotifySession extends Omit<MoodcastSession, 'tracks'> {
 }
 
 export interface BroadcastFormData {
-  prompt: string;
+  mood: string;
   activity: string;
   length: string;
   direction: string;
+  prompt?: string;
   seedArtists?: string;
   seedTracks?: string;
 }
