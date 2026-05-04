@@ -77,9 +77,8 @@ export default function SessionPage() {
     // For now, no-op: the NowPlayingBar shows state but SDK manages playback
   }, []);
 
-  function startPlayback() {
+  const startPlayback = useCallback(() => {
     if (!deviceId || !session) return;
-    // Get URIs from session tracks — SpotifySession has uri fields
     const tracks = session.tracks as Array<{ uri?: string }>;
     const uris = tracks.map((t) => t.uri).filter((u): u is string => Boolean(u));
     if (uris.length === 0) return;
@@ -91,7 +90,7 @@ export default function SessionPage() {
     }).catch(() => {
       setPlayerError('Playback failed — make sure Spotify is open');
     });
-  }
+  }, [deviceId, session]);
 
   if (loading) {
     return (
