@@ -1,26 +1,52 @@
+/* app/globals.css */
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+@theme {
+  --color-mc-bg:      #0b0910;
+  --color-mc-surface: #100e16;
+  --color-mc-elevated:#16121e;
+  --color-mc-border:  #211d2b;
+  --color-mc-lav:     #b8a0d8;
+  --color-mc-coral:   #d4856a;
+  --color-mc-sage:    #7aaa8e;
+  --color-mc-onair:   #e05555;
+  --color-mc-faded:   #9d7ab8;
+  --color-mc-hi:      #ddd8e8;
+  --color-mc-mid:     #8a8298;
+  --color-mc-lo:      #3e3a4a;
+  --color-mc-dim:     #252232;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Raw CSS vars for use in gradients and inline styles */
+:root {
+  --mc-bg:      #0b0910;
+  --mc-surface: #100e16;
+  --mc-elevated:#16121e;
+  --mc-border:  #211d2b;
+  --mc-lav:     #b8a0d8;
+  --mc-coral:   #d4856a;
+  --mc-sage:    #7aaa8e;
+  --mc-onair:   #e05555;
+  --mc-faded:   #9d7ab8;
+  --mc-hi:      #ddd8e8;
+  --mc-mid:     #8a8298;
+  --mc-lo:      #3e3a4a;
+  --mc-dim:     #252232;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+html { background-color: #0b0910; color: #ddd8e8; }
+
+body { font-family: var(--font-geist-sans), system-ui, sans-serif; }
+
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 5px #e0555555; }
+  50%       { box-shadow: 0 0 14px #e05555bb; }
+}
+.animate-breathe { animation: breathe 2.2s ease-in-out infinite; }
+
+@keyframes waveform {
+  0%, 100% { transform: scaleY(1); }
+  50%       { transform: scaleY(0.4); }
 }
