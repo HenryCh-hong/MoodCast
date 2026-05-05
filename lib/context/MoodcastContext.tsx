@@ -50,6 +50,8 @@ interface MoodcastCtx {
   setCompanionOpen: (v: boolean) => void;
   djStatus: DJStatus;
   setDJStatus: (s: DJStatus) => void;
+  djCue: string | null;
+  setDjCue: (cue: string | null) => void;
 }
 
 // ── Context ──────────────────────────────────────────────────────────────────
@@ -93,6 +95,7 @@ export function MoodcastProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeName>(initTheme);
   const [companionOpen, setCompanionOpen] = useState(false);
   const [djStatus, setDJStatus] = useState<DJStatus>('idle');
+  const [djCue, setDjCue] = useState<string | null>(null);
 
   // Apply theme to <html> data-theme attribute
   useEffect(() => {
@@ -132,6 +135,7 @@ export function MoodcastProvider({ children }: { children: ReactNode }) {
       theme, setTheme,
       companionOpen, setCompanionOpen,
       djStatus, setDJStatus,
+      djCue, setDjCue,
     }}>
       {children}
     </MoodcastContext.Provider>
