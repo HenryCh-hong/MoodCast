@@ -90,14 +90,9 @@ export function MoodcastProvider({ children }: { children: ReactNode }) {
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [spotifyProfile, setSpotifyProfile] = useState<SpotifyProfile | null>(null);
-  const [theme, setThemeState] = useState<ThemeName>('midnight');
+  const [theme, setThemeState] = useState<ThemeName>(initTheme);
   const [companionOpen, setCompanionOpen] = useState(false);
   const [djStatus, setDJStatus] = useState<DJStatus>('idle');
-
-  // Init theme from localStorage on mount
-  useEffect(() => {
-    setThemeState(initTheme());
-  }, []);
 
   // Apply theme to <html> data-theme attribute
   useEffect(() => {
@@ -116,7 +111,7 @@ export function MoodcastProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!currentSession) { setDJStatus('idle'); return; }
     if (!playerState) { setDJStatus('on-air'); return; }
-    setDJStatus(playerState.paused ? 'on-air' : 'on-air');
+    setDJStatus(playerState.paused ? 'on-air' : 'listening');
   }, [currentSession, playerState]);
 
   const setTheme = useCallback((t: ThemeName, manual = false) => {
