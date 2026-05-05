@@ -43,5 +43,9 @@ export function updateSession(id: string, patch: Partial<SavedSession>): void {
   const idx = all.findIndex((s) => s.id === id);
   if (idx === -1) return;
   all[idx] = { ...all[idx], ...patch };
-  localStorage.setItem(LIST_KEY, JSON.stringify(all));
+  try {
+    localStorage.setItem(LIST_KEY, JSON.stringify(all));
+  } catch {
+    // QuotaExceededError — patch is not persisted
+  }
 }
