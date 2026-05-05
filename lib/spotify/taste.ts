@@ -10,22 +10,33 @@ export async function buildTasteProfile(token: string): Promise<TasteProfile> {
     spotifyFetch<{ items: Array<{ name: string; uri: string; artists: Array<{ name: string }> }> }>(
       '/me/top/tracks?limit=50&time_range=medium_term', token
     ),
-    spotifyFetch<{ items: Array<{ track: { name: string; uri: string; artists: Array<{ name: string }> } }> }>(
-      '/me/player/recently-played?limit=50', token
-    ),
+    spotifyFetch<{
+      items: Array<{
+        played_at: string;
+        track: { name: string; uri: string; artists: Array<{ name: string }> };
+      }>;
+    }>('/me/player/recently-played?limit=50', token),
   ]);
 
   return {
-    topArtists: topArtistsRes.items.map((a) => ({ name: a.name, genres: a.genres })),
-    topTracks: topTracksRes.items.map((t) => ({
-      title: t.name,
-      artist: t.artists[0]?.name ?? '',
-      uri: t.uri,
+    topArtists: (topArtistsRes.items ?? []).map((a) => ({
+      name: a.name ?? '',
+      genres: Array.isArray(a.genres) ? a.genres : [],
     })),
-    recentTracks: recentRes.items.map((i) => ({
-      title: i.track.name,
-      artist: i.track.artists[0]?.name ?? '',
-      uri: i.track.uri,
+    topTracks: (topTracksRes.items ?? []).map((t) => ({
+      title: t.name ?? '',
+      artist: t.artists?.[0]?.name ?? '',
+      uri: t.uri ?? '',
     })),
+    recentTracks: (recentRes.items ?? []).flatMap((i) =>
+      i.track
+        ? [{
+            title: i.track.name ?? '',
+            artist: i.track.artists?.[0]?.name ?? '',
+            uri: i.track.uri ?? '',
+            playedAt: i.played_at ?? undefined,
+          }]
+        : []
+    ),
   };
 }
