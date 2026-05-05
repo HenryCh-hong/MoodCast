@@ -13,7 +13,14 @@ export async function spotifyFetch<T>(
     },
     body: options?.body,
   });
-  if (!res.ok) throw new Error(`Spotify API error: ${res.status}`);
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const errBody = await res.json() as { error?: { message?: string } };
+      detail = errBody?.error?.message ? `: ${errBody.error.message}` : '';
+    } catch { /* ignore parse failure */ }
+    throw new Error(`Spotify API error: ${res.status}${detail}`);
+  }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
@@ -33,6 +40,17 @@ export async function spotifySearch(
   }));
 }
 
+// Step 1: transfer playback to the Moodcast Web Playback SDK device.
+// The device must be "active" before Spotify accepts a play command.
+export async function transferPlayback(token: string, deviceId: string): Promise<void> {
+  await spotifyFetch<void>(
+    '/me/player',
+    token,
+    { method: 'PUT', body: JSON.stringify({ device_ids: [deviceId], play: false }) }
+  );
+}
+
+// Step 2: start playback of specific URIs on the given device.
 export async function startPlayback(
   token: string,
   deviceId: string,
@@ -43,4 +61,39 @@ export async function startPlayback(
     token,
     { method: 'PUT', body: JSON.stringify({ uris }) }
   );
+}
+
+export async function createPlaylist(
+  token: string,
+  userId: string,
+  name: string,
+  description: string
+): Promise<{ id: string; external_urls: { spotify: string } }> {
+  return spotifyFetch<{ id: string; external_urls: { spotify: string } }>(
+    `/users/${userId}/playlists`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        description,
+        public: false,
+      }),
+    }
+  );
+}
+
+export async function addTracksToPlaylist(
+  token: string,
+  playlistId: string,
+  uris: string[]
+): Promise<void> {
+  // Spotify accepts max 100 URIs per call
+  for (let i = 0; i < uris.length; i += 100) {
+    await spotifyFetch<void>(
+      `/playlists/${playlistId}/tracks`,
+      token,
+      { method: 'POST', body: JSON.stringify({ uris: uris.slice(i, i + 100) }) }
+    );
+  }
 }
