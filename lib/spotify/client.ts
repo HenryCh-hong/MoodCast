@@ -88,7 +88,8 @@ export async function addTracksToPlaylist(
   playlistId: string,
   uris: string[]
 ): Promise<void> {
-  // Spotify accepts max 100 URIs per call
+  // Spotify accepts max 100 URIs per call. Batches are sequential and not atomic —
+  // a failure mid-way leaves the playlist partially populated.
   for (let i = 0; i < uris.length; i += 100) {
     await spotifyFetch<void>(
       `/playlists/${playlistId}/tracks`,
