@@ -74,9 +74,9 @@ export function buildSystemPrompt(tasteProfile?: TasteProfile): string {
     if (s.morningArtists.length > 0)
       lines.push(`Morning (05–10): listening seems to lean toward ${s.morningArtists.join(', ')}`);
     if (s.eveningArtists.length > 0)
-      lines.push(`Evening (18–22): ${s.eveningArtists.join(', ')}`);
+      lines.push(`Evening (18–22): listening seems to lean toward ${s.eveningArtists.join(', ')}`);
     if (s.lateNightArtists.length > 0)
-      lines.push(`Late-night (22–03): ${s.lateNightArtists.join(', ')}`);
+      lines.push(`Late-night (22–03): listening seems to lean toward ${s.lateNightArtists.join(', ')}`);
     if (s.repeatedArtists.length > 0)
       lines.push(`Strong affinity signal: ${s.repeatedArtists.join(', ')} (appears in both top and recent)`);
     if (s.recentSessionMoods.length > 0)
