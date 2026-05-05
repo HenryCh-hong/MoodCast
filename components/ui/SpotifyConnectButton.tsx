@@ -1,25 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
-
-interface SpotifyProfile {
-  connected: boolean;
-  name?: string;
-  isPremium?: boolean;
-  avatar?: string | null;
-}
+import { useMoodcast } from '@/lib/context/MoodcastContext';
 
 export function SpotifyConnectButton() {
-  const [profile, setProfile] = useState<SpotifyProfile | null>(null);
+  const { spotifyProfile: profile } = useMoodcast();
   const [showDropdown, setShowDropdown] = useState(false);
-
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((data: SpotifyProfile) => setProfile(data))
-      .catch(() => setProfile({ connected: false }));
-  }, []);
 
   if (!profile || !profile.connected) {
     return (
@@ -40,14 +27,7 @@ export function SpotifyConnectButton() {
         className="flex items-center gap-2 text-[10px] font-bold tracking-tight text-mc-mid hover:text-mc-hi transition-colors"
       >
         {profile.avatar && (
-          <Image
-            src={profile.avatar}
-            alt=""
-            width={20}
-            height={20}
-            className="rounded-full"
-            unoptimized
-          />
+          <Image src={profile.avatar} alt="" width={20} height={20} className="rounded-full" unoptimized />
         )}
         <span>{profile.name}</span>
         {profile.isPremium && (
@@ -58,12 +38,7 @@ export function SpotifyConnectButton() {
 
       {showDropdown && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowDropdown(false)}
-          />
-          {/* Dropdown */}
+          <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
           <div className="absolute right-0 top-full mt-2 w-44 bg-mc-elevated border border-mc-border rounded shadow-lg z-50 py-1">
             <div className="px-3 py-2 border-b border-mc-border">
               <p className="text-[11px] font-bold tracking-tight text-mc-hi">{profile.name}</p>

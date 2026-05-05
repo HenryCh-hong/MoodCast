@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { getDemoSession } from '@/lib/demo/demoSessions';
 import { getSession } from '@/lib/storage/localSessions';
 import { SpotifyPlayer } from '@/components/player/SpotifyPlayer';
-import { NowPlayingBar } from '@/components/player/NowPlayingBar';
 import { SessionHero } from '@/components/session/SessionHero';
 import { DJMonologueCard } from '@/components/session/DJMonologueCard';
 import { TrackQueue } from '@/components/session/TrackQueue';
@@ -13,33 +12,21 @@ import { SessionArcPanel } from '@/components/session/SessionArcPanel';
 import { AskDJPanel } from '@/components/session/AskDJPanel';
 import { SessionActionBar } from '@/components/session/SessionActionBar';
 import type { MoodcastSession, SavedSession } from '@/lib/types/moodcast';
-
-interface SpotifyProfile {
-  connected: boolean;
-  isPremium?: boolean;
-}
-
-interface PlayerState {
-  paused: boolean;
-  track_window: {
-    current_track: {
-      id: string; name: string; uri: string;
-      artists: Array<{ name: string }>;
-      album: { name: string; images: Array<{ url: string }> };
-    };
-    next_tracks: Array<{ id: string; name: string; uri: string; artists: Array<{ name: string }>; album: { name: string; images: Array<{ url: string }> } }>;
-  };
-}
+import { useMoodcast, type PlayerState } from '@/lib/context/MoodcastContext';
 
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
+  const {
+    spotifyProfile,
+    playerState, setPlayerState,
+    deviceId, setDeviceId,
+    setCurrentSession,
+  } = useMoodcast();
+
   const [session, setSession] = useState<(MoodcastSession & { id?: string; isDemo?: boolean }) | null>(null);
   const [loading, setLoading] = useState(true);
-  const [spotifyProfile, setSpotifyProfile] = useState<SpotifyProfile | null>(null);
-  const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const [playerError, setPlayerError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,21 +39,20 @@ export default function SessionPage() {
       if (saved) setSession(saved);
     }
     setLoading(false);
-
-    // Check Spotify
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((data: SpotifyProfile) => setSpotifyProfile(data))
-      .catch(() => setSpotifyProfile({ connected: false }));
   }, [id]);
+
+  useEffect(() => {
+    if (session) setCurrentSession(session as MoodcastSession);
+    return () => setCurrentSession(null);
+  }, [session, setCurrentSession]);
 
   const handlePlayerReady = useCallback((dId: string) => {
     setDeviceId(dId || null);
-  }, []);
+  }, [setDeviceId]);
 
   const handleStateChange = useCallback((state: PlayerState | null) => {
     setPlayerState(state);
-  }, []);
+  }, [setPlayerState]);
 
   const handlePlayerError = useCallback((msg: string) => {
     setPlayerError(msg);
@@ -212,13 +198,6 @@ export default function SessionPage() {
         session={session}
         spotifyConnected={Boolean(spotifyProfile?.connected)}
       />
-
-      {playerState && (
-        <NowPlayingBar
-          track={playerState.track_window.current_track}
-          paused={playerState.paused}
-        />
-      )}
     </div>
   );
 }
