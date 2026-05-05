@@ -9,12 +9,14 @@ export async function GET() {
 
   try {
     const profile = await spotifyFetch<{
+      id: string;
       display_name: string;
       product: string;
       images: Array<{ url: string }>;
     }>('/me', token);
     return NextResponse.json({
       connected: true,
+      userId: profile.id,
       name: profile.display_name,
       isPremium: profile.product === 'premium',
       avatar: profile.images?.[0]?.url ?? null,

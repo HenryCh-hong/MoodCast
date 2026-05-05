@@ -15,6 +15,8 @@ const SCOPES = [
   'streaming',
   'user-read-playback-state',
   'user-modify-playback-state',
+  'playlist-modify-public',
+  'playlist-modify-private',
 ].join(' ');
 
 export function getSpotifyAuthUrl(state: string, codeChallenge: string): string {
