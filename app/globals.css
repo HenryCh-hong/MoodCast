@@ -2,38 +2,109 @@
 @import "tailwindcss";
 
 @theme {
-  --color-mc-bg:      #0b0910;
-  --color-mc-surface: #100e16;
-  --color-mc-elevated:#16121e;
-  --color-mc-border:  #211d2b;
-  --color-mc-lav:     #b8a0d8;
-  --color-mc-coral:   #d4856a;
-  --color-mc-sage:    #7aaa8e;
-  --color-mc-onair:   #e05555;
-  --color-mc-faded:   #9d7ab8;
-  --color-mc-hi:      #ddd8e8;
-  --color-mc-mid:     #8a8298;
-  --color-mc-lo:      #3e3a4a;
-  --color-mc-dim:     #252232;
+  --color-mc-bg:       var(--mc-bg);
+  --color-mc-surface:  var(--mc-surface);
+  --color-mc-elevated: var(--mc-elevated);
+  --color-mc-border:   var(--mc-border);
+  --color-mc-lav:      var(--mc-lav);
+  --color-mc-coral:    var(--mc-coral);
+  --color-mc-sage:     var(--mc-sage);
+  --color-mc-onair:    var(--mc-onair);
+  --color-mc-faded:    var(--mc-faded);
+  --color-mc-hi:       var(--mc-hi);
+  --color-mc-mid:      var(--mc-mid);
+  --color-mc-lo:       var(--mc-lo);
+  --color-mc-dim:      var(--mc-dim);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 /* Raw CSS vars for use in gradients and inline styles */
-:root {
-  --mc-bg:      #0b0910;
-  --mc-surface: #100e16;
-  --mc-elevated:#16121e;
-  --mc-border:  #211d2b;
-  --mc-lav:     #b8a0d8;
-  --mc-coral:   #d4856a;
-  --mc-sage:    #7aaa8e;
-  --mc-onair:   #e05555;
-  --mc-faded:   #9d7ab8;
-  --mc-hi:      #ddd8e8;
-  --mc-mid:     #8a8298;
-  --mc-lo:      #3e3a4a;
-  --mc-dim:     #252232;
+
+/* ── Midnight Studio (default) ── */
+:root,
+[data-theme="midnight"] {
+  --mc-bg:       #0b0910;
+  --mc-surface:  #100e16;
+  --mc-elevated: #16121e;
+  --mc-border:   #211d2b;
+  --mc-lav:      #b8a0d8;
+  --mc-coral:    #d4856a;
+  --mc-sage:     #7aaa8e;
+  --mc-onair:    #e05555;
+  --mc-faded:    #9d7ab8;
+  --mc-hi:       #ddd8e8;
+  --mc-mid:      #8a8298;
+  --mc-lo:       #3e3a4a;
+  --mc-dim:      #252232;
+}
+
+/* ── Morning Signal (05:00–10:00) ── */
+[data-theme="morning"] {
+  --mc-bg:       #f7f2eb;
+  --mc-surface:  #f0ebe0;
+  --mc-elevated: #e8e2d6;
+  --mc-border:   #d4ccbf;
+  --mc-lav:      #7c5cbf;
+  --mc-coral:    #c4704a;
+  --mc-sage:     #4a8a60;
+  --mc-onair:    #c44040;
+  --mc-faded:    #9070b0;
+  --mc-hi:       #1a1620;
+  --mc-mid:      #4a4060;
+  --mc-lo:       #7a7090;
+  --mc-dim:      #b4acc4;
+}
+
+/* ── Daylight Studio (10:00–17:00) ── */
+[data-theme="daylight"] {
+  --mc-bg:       #f2f0f6;
+  --mc-surface:  #eae8f0;
+  --mc-elevated: #e2dfe8;
+  --mc-border:   #cac6d6;
+  --mc-lav:      #6b4fb8;
+  --mc-coral:    #b86040;
+  --mc-sage:     #3a7a50;
+  --mc-onair:    #b83838;
+  --mc-faded:    #8060a8;
+  --mc-hi:       #1c1830;
+  --mc-mid:      #504870;
+  --mc-lo:       #807898;
+  --mc-dim:      #b8b0c8;
+}
+
+/* ── Evening Glow (17:00–21:00) ── */
+[data-theme="evening"] {
+  --mc-bg:       #1a1010;
+  --mc-surface:  #201414;
+  --mc-elevated: #261a16;
+  --mc-border:   #3a2820;
+  --mc-lav:      #d4906a;
+  --mc-coral:    #d4856a;
+  --mc-sage:     #7aaa8e;
+  --mc-onair:    #e05040;
+  --mc-faded:    #b87050;
+  --mc-hi:       #e8d4c4;
+  --mc-mid:      #a88878;
+  --mc-lo:       #6a5040;
+  --mc-dim:      #3a2820;
+}
+
+/* ── Terminal Analog (manual only) ── */
+[data-theme="terminal"] {
+  --mc-bg:       #0a0f0a;
+  --mc-surface:  #0c120c;
+  --mc-elevated: #101810;
+  --mc-border:   #1a2a1a;
+  --mc-lav:      #4aaa4a;
+  --mc-coral:    #88cc44;
+  --mc-sage:     #60aa60;
+  --mc-onair:    #88dd44;
+  --mc-faded:    #3a8a3a;
+  --mc-hi:       #a0e8a0;
+  --mc-mid:      #60a060;
+  --mc-lo:       #2a4a2a;
+  --mc-dim:      #141e14;
 }
 
 html { background-color: var(--mc-bg); color: var(--mc-hi); }
