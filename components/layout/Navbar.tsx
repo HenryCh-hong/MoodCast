@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { OnAirDot } from '@/components/ui/OnAirDot';
 import { SpotifyConnectButton } from '@/components/ui/SpotifyConnectButton';
+import { NavDJController } from '@/components/layout/NavDJController';
 
 export function Navbar() {
   return (
@@ -18,6 +19,7 @@ export function Navbar() {
             </span>
           </div>
           <span className="text-[9px] font-mono text-mc-lo tracking-[0.1em]">FM 88.7</span>
+          <NavDJController />
         </div>
         <nav className="flex items-center gap-5 text-[10px] tracking-[0.1em] uppercase text-mc-lo">
           <Link href="/builder" className="hover:text-mc-mid transition-colors">New Session</Link>
