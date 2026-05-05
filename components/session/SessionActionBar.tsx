@@ -24,7 +24,6 @@ export function SessionActionBar({
   );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [skippedCount, setSkippedCount] = useState(0);
 
   function handleDelete() {
     deleteSession(sessionId);
@@ -34,10 +33,10 @@ export function SessionActionBar({
   const handleSavePlaylist = useCallback(async () => {
     setSaving(true);
     setSaveError(null);
-    setSkippedCount(0);
 
-    const allUris = session.tracks.map((t) => t.uri ?? '');
-    const validUris = allUris.filter((u) => u.startsWith('spotify:track:'));
+    const validUris = session.tracks
+      .filter((t) => t.uri?.startsWith('spotify:track:'))
+      .map((t) => t.uri!);
 
     try {
       const res = await fetch('/api/playlist/create', {
@@ -52,7 +51,6 @@ export function SessionActionBar({
       const data = await res.json() as {
         playlistId?: string;
         playlistUrl?: string;
-        skippedCount?: number;
         error?: string;
       };
       if (!res.ok || !data.playlistUrl) {
@@ -60,7 +58,6 @@ export function SessionActionBar({
         return;
       }
       setPlaylistUrl(data.playlistUrl);
-      if (data.skippedCount) setSkippedCount(data.skippedCount);
       if (!isDemo) {
         updateSession(sessionId, {
           spotifyPlaylistId: data.playlistId,
@@ -134,7 +131,7 @@ export function SessionActionBar({
       </div>
 
       {/* Warnings and confirmations */}
-      {!spotifyConnected && (
+      {!spotifyConnected && !isDemo && (
         <p className="text-[10px] font-mono text-mc-lo tracking-tight">
           <a href="/api/auth/spotify" className="text-[#1DB954] underline">Connect Spotify</a>
           {' '}to save this session as a playlist.
@@ -149,9 +146,9 @@ export function SessionActionBar({
         </p>
       )}
 
-      {skippedCount > 0 && playlistUrl && (
+      {missingUriCount > 0 && playlistUrl && !isDemo && (
         <p className="text-[10px] font-mono text-mc-dim tracking-tight">
-          {skippedCount} track{skippedCount > 1 ? 's' : ''} skipped (no Spotify URI). Playlist saved with {validTrackCount} track{validTrackCount !== 1 ? 's' : ''}.
+          {missingUriCount} track{missingUriCount > 1 ? 's' : ''} skipped (no Spotify URI). Playlist saved with {validTrackCount} track{validTrackCount !== 1 ? 's' : ''}.
         </p>
       )}
 

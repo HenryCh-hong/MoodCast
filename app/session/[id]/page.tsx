@@ -82,13 +82,6 @@ export default function SessionPage() {
       .map((t) => t.uri ?? '')
       .filter((u) => u.startsWith('spotify:track:'));
 
-    console.log('[startPlayback]', {
-      deviceId,
-      totalTracks: session.tracks.length,
-      validUris: uris.length,
-      firstUris: uris.slice(0, 3),
-    });
-
     if (uris.length === 0) {
       setPlayerError('No playable Spotify tracks found in this session. Regenerate with Spotify connected to get real URIs.');
       return;
