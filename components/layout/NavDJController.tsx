@@ -3,7 +3,7 @@
 import { useMoodcast } from '@/lib/context/MoodcastContext';
 
 export function NavDJController() {
-  const { currentSession, playerState, djStatus, setCompanionOpen } = useMoodcast();
+  const { currentSession, playerState, djStatus, setCompanionOpen, djCue } = useMoodcast();
 
   if (!currentSession) return null;
 
@@ -18,12 +18,14 @@ export function NavDJController() {
       <span className={`w-1 h-1 rounded-full bg-mc-onair flex-shrink-0 ${djStatus !== 'idle' ? 'animate-breathe' : 'opacity-30'}`} />
       <span className="text-[8px] font-mono tracking-[0.12em] text-mc-lo mr-0.5">MOOC</span>
       <span className="max-w-[120px] truncate text-mc-lo">{currentSession.sessionTitle}</span>
-      {track && (
+      {djCue ? (
+        <span className="text-[8px] font-mono text-mc-lo tracking-[0.12em] animate-pulse">♦ cueing</span>
+      ) : track ? (
         <>
           <span className="text-mc-dim">·</span>
           <span className="max-w-[140px] truncate">{track.name}</span>
         </>
-      )}
+      ) : null}
     </button>
   );
 }
