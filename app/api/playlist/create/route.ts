@@ -25,9 +25,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No track URIs provided' }, { status: 400 });
   }
 
-  // Filter to valid track URIs only — episodes and empty strings are excluded
+  // Filter to valid track URIs only — episodes and empty strings are excluded.
+  // The client pre-filters before sending, so this is a safety net.
   const trackUris = uris.filter((u) => u.startsWith('spotify:track:'));
-  const skippedCount = uris.length - trackUris.length;
 
   if (trackUris.length === 0) {
     return NextResponse.json(
@@ -61,6 +61,5 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     playlistId: playlist.id,
     playlistUrl: playlist.external_urls.spotify,
-    skippedCount,
   });
 }

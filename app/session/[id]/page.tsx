@@ -179,7 +179,7 @@ export default function SessionPage() {
         </div>
       )}
 
-      {!spotifyProfile?.connected && (
+      {!spotifyProfile?.connected && !session.isDemo && (
         <div className="mt-4 mb-6 p-3 border border-mc-border rounded text-[12px] font-bold tracking-tight text-mc-lo">
           <span className="text-[#1DB954]">♪</span>{' '}
           <a href="/api/auth/spotify" className="underline hover:text-mc-mid transition-colors">Connect Spotify</a>
