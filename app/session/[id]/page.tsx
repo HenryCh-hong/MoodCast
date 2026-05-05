@@ -72,18 +72,45 @@ export default function SessionPage() {
     setPlayerError(msg);
   }, []);
 
-  const startPlayback = useCallback(() => {
-    if (!deviceId || !session) return;
-    const uris = session.tracks.map((t) => t.uri).filter((u): u is string => Boolean(u));
-    if (uris.length === 0) return;
+  const [playbackPending, setPlaybackPending] = useState(false);
 
-    fetch('/api/playback/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceId, uris }),
-    }).catch(() => {
-      setPlayerError('Playback failed — make sure Spotify is open');
+  const startPlayback = useCallback(async () => {
+    if (!deviceId || !session) return;
+
+    // Only pass valid spotify:track: URIs
+    const uris = session.tracks
+      .map((t) => t.uri ?? '')
+      .filter((u) => u.startsWith('spotify:track:'));
+
+    console.log('[startPlayback]', {
+      deviceId,
+      totalTracks: session.tracks.length,
+      validUris: uris.length,
+      firstUris: uris.slice(0, 3),
     });
+
+    if (uris.length === 0) {
+      setPlayerError('No playable Spotify tracks found in this session. Regenerate with Spotify connected to get real URIs.');
+      return;
+    }
+
+    setPlaybackPending(true);
+    setPlayerError(null);
+    try {
+      const res = await fetch('/api/playback/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId, uris }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as Record<string, unknown>)) as { error?: string };
+        setPlayerError(body.error ?? `Playback failed (${res.status})`);
+      }
+    } catch {
+      setPlayerError('Playback failed — check your network connection');
+    } finally {
+      setPlaybackPending(false);
+    }
   }, [deviceId, session]);
 
   if (loading) {
@@ -139,13 +166,23 @@ export default function SessionPage() {
       />
 
       {isPremiumWithPlayer && deviceId && (
-        <div className="mt-4 mb-6">
+        <div className="mt-4 mb-6 flex flex-col gap-2">
           <button
             onClick={startPlayback}
-            className="px-4 py-2 rounded bg-mc-lav text-[#1a1228] text-[12px] font-bold tracking-tight hover:opacity-90 transition-opacity"
+            disabled={playbackPending}
+            className="self-start px-4 py-2 rounded bg-mc-lav text-[#1a1228] text-[12px] font-bold tracking-tight hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            ▶ Start Playback
+            {playbackPending ? 'Starting···' : '▶ Start Playback'}
           </button>
+          <p className="text-[9px] font-mono text-mc-dim tracking-[0.12em]">
+            Moodcast appears as a Spotify Connect device, not a playlist.
+          </p>
+        </div>
+      )}
+
+      {isPremiumWithPlayer && !deviceId && (
+        <div className="mt-4 mb-6 p-3 border border-mc-border rounded text-[12px] font-bold tracking-tight text-mc-lo">
+          Moodcast device connecting···
         </div>
       )}
 
@@ -176,7 +213,12 @@ export default function SessionPage() {
 
       <AskDJPanel session={session as MoodcastSession} />
 
-      <SessionActionBar sessionId={id} isDemo={Boolean((session as SavedSession & { isDemo?: boolean }).isDemo)} />
+      <SessionActionBar
+        sessionId={id}
+        isDemo={Boolean((session as SavedSession & { isDemo?: boolean }).isDemo)}
+        session={session}
+        spotifyConnected={Boolean(spotifyProfile?.connected)}
+      />
 
       {playerState && (
         <NowPlayingBar
