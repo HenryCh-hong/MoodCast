@@ -36,3 +36,12 @@ export function deleteSession(id: string): void {
   const updated = getSessions().filter((s) => s.id !== id);
   localStorage.setItem(LIST_KEY, JSON.stringify(updated));
 }
+
+export function updateSession(id: string, patch: Partial<SavedSession>): void {
+  if (!isBrowser()) return;
+  const all = getSessions();
+  const idx = all.findIndex((s) => s.id === id);
+  if (idx === -1) return;
+  all[idx] = { ...all[idx], ...patch };
+  localStorage.setItem(LIST_KEY, JSON.stringify(all));
+}

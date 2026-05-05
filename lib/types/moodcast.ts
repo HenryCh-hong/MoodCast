@@ -34,6 +34,8 @@ export interface SavedSession extends MoodcastSession {
   isDemo?: boolean;
   demoId?: string;
   spotifyConnected?: boolean;
+  spotifyPlaylistId?: string;
+  spotifyPlaylistUrl?: string;
 }
 
 export interface SpotifyTrack {
