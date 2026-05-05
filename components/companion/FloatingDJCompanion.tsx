@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useMoodcast, type ThemeName } from '@/lib/context/MoodcastContext';
+import { useMoodcast, autoTheme, type ThemeName } from '@/lib/context/MoodcastContext';
 import { useAskDJ } from '@/lib/hooks/useAskDJ';
 
 const QUICK_ACTIONS = [
@@ -20,14 +20,6 @@ const THEMES: Array<{ key: ThemeName; label: string }> = [
   { key: 'midnight', label: '●' },
   { key: 'terminal', label: '▮' },
 ];
-
-function autoTheme(): ThemeName {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 10) return 'morning';
-  if (h >= 10 && h < 17) return 'daylight';
-  if (h >= 17 && h < 21) return 'evening';
-  return 'midnight';
-}
 
 export function FloatingDJCompanion() {
   const {

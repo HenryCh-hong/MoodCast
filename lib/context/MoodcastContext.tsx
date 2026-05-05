@@ -66,7 +66,7 @@ export function useMoodcast(): MoodcastCtx {
 
 const THEME_KEY = 'moodcast:theme';
 
-function autoTheme(): ThemeName {
+export function autoTheme(): ThemeName {
   const h = new Date().getHours();
   if (h >= 5 && h < 10) return 'morning';
   if (h >= 10 && h < 17) return 'daylight';

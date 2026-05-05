@@ -43,7 +43,11 @@ export default function SessionPage() {
 
   useEffect(() => {
     if (session) setCurrentSession(session as MoodcastSession);
-    return () => setCurrentSession(null);
+    return () => {
+      setCurrentSession(null);
+      setPlayerState(null);
+      setDeviceId(null);
+    };
   }, [session, setCurrentSession]);
 
   const handlePlayerReady = useCallback((dId: string) => {
