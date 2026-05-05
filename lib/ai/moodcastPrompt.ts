@@ -51,29 +51,62 @@ export function buildSystemPrompt(tasteProfile?: TasteProfile): string {
     return DJ_PERSONA;
   }
 
-  const topArtistsStr = tasteProfile.topArtists
+  const topArtistsStr = (tasteProfile.topArtists ?? [])
     .slice(0, 10)
-    .map((a) => `${a.name} (${a.genres.slice(0, 2).join(', ')})`)
+    .map((a) => `${a.name} (${(a.genres ?? []).slice(0, 2).join(', ')})`)
     .join(', ');
 
-  const topTracksStr = tasteProfile.topTracks
+  const topTracksStr = (tasteProfile.topTracks ?? [])
     .slice(0, 20)
     .map((t) => `${t.title} — ${t.artist} [${t.uri}]`)
     .join('\n');
 
-  const recentTracksStr = tasteProfile.recentTracks
+  const recentTracksStr = (tasteProfile.recentTracks ?? [])
     .slice(0, 10)
     .map((t) => `${t.title} — ${t.artist} [${t.uri}]`)
     .join('\n');
+
+  let contextualSection = '';
+  if (tasteProfile.contextualSignals) {
+    const s = tasteProfile.contextualSignals;
+    const lines: string[] = [];
+
+    if (s.morningArtists.length > 0)
+      lines.push(`Morning (05–10): listening seems to lean toward ${s.morningArtists.join(', ')}`);
+    if (s.eveningArtists.length > 0)
+      lines.push(`Evening (18–22): ${s.eveningArtists.join(', ')}`);
+    if (s.lateNightArtists.length > 0)
+      lines.push(`Late-night (22–03): ${s.lateNightArtists.join(', ')}`);
+    if (s.repeatedArtists.length > 0)
+      lines.push(`Strong affinity signal: ${s.repeatedArtists.join(', ')} (appears in both top and recent)`);
+    if (s.recentSessionMoods.length > 0)
+      lines.push(`Recent session moods: ${s.recentSessionMoods.join(', ')}`);
+    if (s.recentSessionActivities.length > 0)
+      lines.push(`Recent session activities: ${s.recentSessionActivities.join(', ')}`);
+    if (s.recentEnergyTrend !== 'unknown')
+      lines.push(`Recent energy trend: ${s.recentEnergyTrend}`);
+
+    const confidenceNote =
+      s.confidence === 'high'
+        ? 'Confidence: high — weight these patterns meaningfully.'
+        : s.confidence === 'medium'
+          ? 'Confidence: medium — treat as a weak signal, not a rule.'
+          : 'Confidence: low — not enough listening history yet. Use lightly as a soft hint only.';
+
+    if (lines.length > 0) {
+      contextualSection = `\n\nCONTEXTUAL SIGNALS (${s.explanation}):\n${lines.join('\n')}\n${confidenceNote}`;
+    }
+  }
 
   return `${DJ_PERSONA}
 
 USER TASTE PROFILE:
 Top Artists: ${topArtistsStr}
 Top Tracks: ${topTracksStr}
-Recent: ${recentTracksStr}
+Recent: ${recentTracksStr}${contextualSection}
 
-Select tracks from this pool whenever possible. Use the URIs exactly as listed.`;
+Select tracks from this pool whenever possible. Use the URIs exactly as listed.
+When contextual signals are present, let them gently shape — not override — track selection and the opening monologue's tone. Do not mention the signals explicitly in the DJ voice.`;
 }
 
 export function buildUserPrompt(form: BroadcastFormData): string {
