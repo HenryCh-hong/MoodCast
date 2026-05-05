@@ -4,6 +4,7 @@ import { getValidAccessToken } from '@/lib/spotify/auth';
 import { buildTasteProfile } from '@/lib/spotify/taste';
 import { generateMoodcastSession } from '@/lib/ai/generateMoodcastSession';
 import { getRandomDemoSession } from '@/lib/demo/demoSessions';
+import { analyzeListeningPatterns } from '@/lib/taste/contextual';
 import type { BroadcastFormData } from '@/lib/types/moodcast';
 
 export async function POST(req: NextRequest) {
@@ -21,8 +22,15 @@ export async function POST(req: NextRequest) {
   if (spotifyToken) {
     try {
       tasteProfile = await buildTasteProfile(spotifyToken);
+      if (tasteProfile && Array.isArray(form.recentSessions)) {
+        tasteProfile.contextualSignals = analyzeListeningPatterns(
+          tasteProfile.recentTracks,
+          tasteProfile.topTracks,
+          form.recentSessions,
+        );
+      }
     } catch {
-      // Continue without taste profile — Claude picks from its knowledge
+      // Continue without taste profile
     }
   }
 
@@ -30,6 +38,7 @@ export async function POST(req: NextRequest) {
     const session = await generateMoodcastSession({ form, tasteProfile });
     return NextResponse.json({ session, isDemo: false });
   } catch (err) {
+    console.error('[generate-session] generation failed:', err);
     const message = err instanceof Error ? err.message : 'Generation failed';
     return NextResponse.json({ error: message }, { status: 500 });
   }

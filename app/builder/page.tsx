@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BroadcastConsole } from '@/components/builder/BroadcastConsole';
-import { saveSession } from '@/lib/storage/localSessions';
+import { getSessions, saveSession } from '@/lib/storage/localSessions';
 import { generateId } from '@/lib/utils';
 import type { BroadcastFormData, GenerateSessionResponse } from '@/lib/types/moodcast';
 
@@ -16,10 +16,21 @@ export default function BuilderPage() {
     setIsScanning(true);
     setError(null);
     try {
+      // Slim snapshot of local session history — passed as context to the AI.
+      // Only mood/activity/createdAt are sent; no track data leaves the client.
+      const recentSessions = (() => {
+        try {
+          return getSessions()
+            .slice(0, 5)
+            .map(({ mood, activity, createdAt }) => ({ mood, activity, createdAt }));
+        } catch {
+          return [];
+        }
+      })();
       const res = await fetch('/api/generate-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, recentSessions }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string };
