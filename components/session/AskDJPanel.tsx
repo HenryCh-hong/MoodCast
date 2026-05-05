@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useAskDJ } from '@/lib/hooks/useAskDJ';
 import type { MoodcastSession } from '@/lib/types/moodcast';
 
 const HINTS = [
@@ -16,30 +17,7 @@ interface AskDJPanelProps {
 
 export function AskDJPanel({ session }: AskDJPanelProps) {
   const [question, setQuestion] = useState('');
-  const [response, setResponse] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function ask(q: string) {
-    if (!q.trim()) return;
-    setLoading(true);
-    setResponse(null);
-    try {
-      const res = await fetch('/api/ask-dj', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session, question: q }),
-      });
-      if (!res.ok) {
-        setResponse('The DJ is off-air right now. Try again.');
-        return;
-      }
-      const data = await res.json() as { djMessage: string };
-      setResponse(data.djMessage);
-    } finally {
-      setLoading(false);
-      setQuestion('');
-    }
-  }
+  const { ask, loading, response } = useAskDJ(session);
 
   return (
     <div className="mt-8 mb-6 p-5 border border-mc-border rounded bg-mc-elevated">
@@ -69,12 +47,12 @@ export function AskDJPanel({ session }: AskDJPanelProps) {
           type="text"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && ask(question)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { ask(question); setQuestion(''); } }}
           placeholder="Ask the DJ anything..."
           className="flex-1 bg-mc-surface border border-mc-border rounded px-3 py-2 text-[12px] font-bold tracking-tight text-mc-hi placeholder:text-mc-dim placeholder:font-normal focus:outline-none focus:border-mc-lav transition-colors"
         />
         <button
-          onClick={() => ask(question)}
+          onClick={() => { ask(question); setQuestion(''); }}
           disabled={loading || !question.trim()}
           className="px-3 py-2 rounded border border-mc-border text-[11px] font-bold tracking-tight text-mc-lo hover:border-mc-mid hover:text-mc-mid transition-colors disabled:opacity-35"
         >
