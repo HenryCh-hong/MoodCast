@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useMoodcast, autoTheme, type ThemeName } from '@/lib/context/MoodcastContext';
 import { useAskDJ } from '@/lib/hooks/useAskDJ';
 import { useDraggableCompanion } from '@/lib/hooks/useDraggableCompanion';
+import { useTrackTransition } from '@/lib/hooks/useTrackTransition';
 
 const QUICK_ACTIONS = [
   { label: 'softer', q: 'Shift the energy down — what track fits next?' },
@@ -47,9 +48,11 @@ export function FloatingDJCompanion() {
     companionOpen, setCompanionOpen,
     djStatus, theme, setTheme,
     deviceId,
+    djCue, setDjCue,
   } = useMoodcast();
   const { ask, loading, response, clearResponse } = useAskDJ(currentSession);
   const { pos, onHeaderMouseDown } = useDraggableCompanion();
+  useTrackTransition();
   const [inputValue, setInputValue] = useState('');
   const [controlPending, setControlPending] = useState(false);
   const [controlError, setControlError] = useState<string | null>(null);
@@ -272,6 +275,25 @@ export function FloatingDJCompanion() {
           </a>
         )}
       </div>
+
+      {/* MOOC CUE card — appears when track changes, auto-clears after 10s */}
+      {djCue && (
+        <div className="px-4 py-2.5 border-b border-mc-border bg-mc-surface">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <span className="text-[8px] font-mono tracking-[0.18em] uppercase text-mc-lo">
+              MOOC CUE
+            </span>
+            <button
+              onClick={() => setDjCue(null)}
+              className="text-mc-lo hover:text-mc-mid transition-colors text-[13px] leading-none -mt-0.5 flex-shrink-0"
+              aria-label="Dismiss cue"
+            >
+              ×
+            </button>
+          </div>
+          <p className="text-[11px] font-sans italic text-mc-mid leading-relaxed">{djCue}</p>
+        </div>
+      )}
 
       {/* Quick actions */}
       {currentSession && (
