@@ -42,7 +42,10 @@ export function TrackQueue({ tracks, playerState }: TrackQueueProps) {
               </span>
               <div className="flex-1 min-w-0">
                 {track.transitionLine && i > 0 && (
-                  <p className="text-[10px] font-bold tracking-tight text-mc-dim mb-1">
+                  <p className={cn(
+                    'text-[10px] font-bold tracking-tight mb-1',
+                    isNow ? 'text-mc-lo' : 'text-mc-dim',
+                  )}>
                     ↳ {track.transitionLine}
                   </p>
                 )}
