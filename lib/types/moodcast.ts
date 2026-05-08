@@ -75,6 +75,17 @@ export interface ContextualSignals {
   recentEnergyTrend: 'low' | 'medium' | 'high' | 'mixed' | 'unknown';
   confidence: 'low' | 'medium' | 'high';
   explanation: string;               // e.g. "Morning signal detected: soft / focused"
+  /**
+   * Coarse maturity bucket used by the prompt builder to lean safer for
+   * brand-new users (~70% taste-safe / 30% discovery on familiar/balanced
+   * dials). Computed alongside `confidence` from listening signals + the
+   * size of the local session library.
+   *
+   *   new          — first/second session; barely any history
+   *   learning     — handful of sessions and some recent listening
+   *   established  — meaningful history; current ratios are fine
+   */
+  userMaturity: 'new' | 'learning' | 'established';
 }
 
 export interface TasteProfile {

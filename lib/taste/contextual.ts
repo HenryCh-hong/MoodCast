@@ -18,10 +18,15 @@ function topN(counts: Map<string, number>, n: number): string[] {
 
 // recentSessions comes from the builder page (client reads localStorage, passes slim subset).
 // Each entry is { mood: string; activity: string; createdAt: string }.
+//
+// `librarySize` is the count of saved sessions in the shared library
+// (~/.moodcast/sessions/). Optional — when omitted, maturity is computed
+// from listening signals alone.
 export function analyzeListeningPatterns(
   recentTracks: TasteProfile['recentTracks'],
   topTracks: TasteProfile['topTracks'],
-  recentSessions: Array<{ mood: string; activity: string; createdAt: string }>
+  recentSessions: Array<{ mood: string; activity: string; createdAt: string }>,
+  librarySize: number = 0,
 ): ContextualSignals {
   // ── Time-window artist analysis ─────────────────────────────────────────────
   const windowCounts: Record<TimeWindow, Map<string, number>> = {
@@ -105,6 +110,21 @@ export function analyzeListeningPatterns(
     confidence = 'low';
   }
 
+  // ── User maturity ─────────────────────────────────────────────────────────────
+  // Combines listening confidence with the size of the local session library
+  // (a separate signal — a user might have low Spotify history but lots of
+  // Moodcast sessions, or vice versa). Used by the prompt builder to lean
+  // safer for brand-new users while not blocking adventurous discovery for
+  // established ones.
+  let userMaturity: ContextualSignals['userMaturity'];
+  if (confidence === 'high' || librarySize >= 5) {
+    userMaturity = 'established';
+  } else if (confidence === 'medium' || librarySize >= 2) {
+    userMaturity = 'learning';
+  } else {
+    userMaturity = 'new';
+  }
+
   // ── Explanation ───────────────────────────────────────────────────────────────
   const explanationParts: string[] = [];
   const morningTop = topN(windowCounts.morning, 1)[0];
@@ -127,5 +147,6 @@ export function analyzeListeningPatterns(
     recentEnergyTrend,
     confidence,
     explanation,
+    userMaturity,
   };
 }

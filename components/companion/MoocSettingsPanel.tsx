@@ -106,6 +106,8 @@ export function MoocSettingsPanel({ defaultOpen = false }: MoocSettingsPanelProp
               </span>
               <button
                 onClick={() => update({ voiceEnabled: !prefs.voiceEnabled })}
+                aria-pressed={prefs.voiceEnabled}
+                aria-label={prefs.voiceEnabled ? 'Turn MooC voice off' : 'Turn MooC voice on'}
                 className={
                   'text-[9px] font-mono tracking-[0.12em] uppercase border rounded px-2 py-0.5 transition-colors ' +
                   (prefs.voiceEnabled
@@ -121,16 +123,30 @@ export function MoocSettingsPanel({ defaultOpen = false }: MoocSettingsPanelProp
                 speechSynthesis unavailable · text-only fallback
               </p>
             )}
-            {/* Mode pills */}
-            <div className="flex gap-1 mb-2">
+            {!prefs.voiceEnabled && (
+              <p className="text-[9px] font-mono text-mc-dim mb-1.5">
+                voice off · transition cue cards still appear visually
+              </p>
+            )}
+            {/* Mode pills — disabled visually + functionally when voice is off */}
+            <div className="flex gap-1 mb-2" aria-disabled={!prefs.voiceEnabled}>
               {VOICE_MODES.map((m) => {
                 const active = prefs.voiceMode === m.id;
+                const disabled = !prefs.voiceEnabled;
                 return (
                   <button
                     key={m.id}
                     onClick={() => update({ voiceMode: m.id })}
+                    disabled={disabled}
+                    title={
+                      m.id === 'off'
+                        ? 'no AI reading'
+                        : m.id === 'transitions'
+                        ? 'short DJ cues between songs'
+                        : 'short welcome line + transition cues'
+                    }
                     className={
-                      'text-[9px] tracking-tight border rounded px-2 py-0.5 transition-colors ' +
+                      'text-[9px] tracking-tight border rounded px-2 py-0.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ' +
                       (active
                         ? 'border-mc-lav text-mc-lav bg-[rgba(184,160,216,0.1)]'
                         : 'border-mc-border text-mc-lo hover:border-mc-mid hover:text-mc-mid')
@@ -141,9 +157,9 @@ export function MoocSettingsPanel({ defaultOpen = false }: MoocSettingsPanelProp
                 );
               })}
             </div>
-            {/* Volume + rate */}
+            {/* Volume + rate — disabled when voice is off */}
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <label className="block">
+              <label className={'block ' + (!prefs.voiceEnabled ? 'opacity-40' : '')}>
                 <span className="text-[8px] font-mono tracking-[0.18em] uppercase text-mc-lo block mb-0.5">
                   vol {prefs.voiceVolume}
                 </span>
@@ -153,11 +169,12 @@ export function MoocSettingsPanel({ defaultOpen = false }: MoocSettingsPanelProp
                   max={100}
                   step={5}
                   value={prefs.voiceVolume}
+                  disabled={!prefs.voiceEnabled}
                   onChange={(e) => update({ voiceVolume: Number(e.target.value) })}
-                  className="w-full accent-[#b8a0d8]"
+                  className="w-full accent-[#b8a0d8] disabled:cursor-not-allowed"
                 />
               </label>
-              <label className="block">
+              <label className={'block ' + (!prefs.voiceEnabled ? 'opacity-40' : '')}>
                 <span className="text-[8px] font-mono tracking-[0.18em] uppercase text-mc-lo block mb-0.5">
                   rate {prefs.voiceRate.toFixed(2)}
                 </span>
@@ -167,19 +184,21 @@ export function MoocSettingsPanel({ defaultOpen = false }: MoocSettingsPanelProp
                   max={1.2}
                   step={0.05}
                   value={prefs.voiceRate}
+                  disabled={!prefs.voiceEnabled}
                   onChange={(e) => update({ voiceRate: Number(e.target.value) })}
-                  className="w-full accent-[#b8a0d8]"
+                  className="w-full accent-[#b8a0d8] disabled:cursor-not-allowed"
                 />
               </label>
             </div>
-            {/* Voice picker */}
+            {/* Voice picker — disabled when voice is off */}
             {voice.isAvailable && (
-              <div className="flex items-center gap-2 mb-2">
+              <div className={'flex items-center gap-2 mb-2 ' + (!prefs.voiceEnabled ? 'opacity-40' : '')}>
                 <span className="text-[8px] font-mono tracking-[0.18em] uppercase text-mc-lo">voice</span>
                 <select
                   value={prefs.preferredVoiceName ?? ''}
+                  disabled={!prefs.voiceEnabled}
                   onChange={(e) => update({ preferredVoiceName: e.target.value || null })}
-                  className="flex-1 bg-mc-surface border border-mc-border rounded px-1.5 py-0.5 text-[10px] text-mc-mid focus:outline-none focus:border-mc-lav"
+                  className="flex-1 bg-mc-surface border border-mc-border rounded px-1.5 py-0.5 text-[10px] text-mc-mid focus:outline-none focus:border-mc-lav disabled:cursor-not-allowed"
                 >
                   <option value="">(default)</option>
                   {voice.voices
@@ -193,7 +212,7 @@ export function MoocSettingsPanel({ defaultOpen = false }: MoocSettingsPanelProp
                 <button
                   onClick={handleTest}
                   disabled={!voice.isAvailable || !prefs.voiceEnabled || prefs.voiceMode === 'off'}
-                  className="text-[9px] tracking-tight border border-mc-border rounded px-2 py-0.5 text-mc-lo hover:border-mc-mid hover:text-mc-mid disabled:opacity-40 transition-colors"
+                  className="text-[9px] tracking-tight border border-mc-border rounded px-2 py-0.5 text-mc-lo hover:border-mc-mid hover:text-mc-mid disabled:opacity-40 transition-colors disabled:cursor-not-allowed"
                 >
                   test
                 </button>

@@ -15,7 +15,7 @@ import { analyzeListeningPatterns } from '@/lib/taste/contextual';
 import { getActiveProvider } from '@/lib/ai/provider';
 import { QuotaExhaustedError } from '@/lib/ai/quotaError';
 import { writeActiveSession } from '@/lib/sessions/activeSession';
-import { appendSession } from '@/lib/sessions/sessionLibrary';
+import { appendSession, listSessions } from '@/lib/sessions/sessionLibrary';
 import { sanitiseMomentContext } from '@/lib/sessions/sanitiseMoment';
 import { resolveSessionTracks } from '@/lib/spotify/resolveTracks';
 import {
@@ -97,11 +97,17 @@ export async function POST(req: NextRequest) {
   if (spotifyToken) {
     try {
       tasteProfile = await buildTasteProfile(spotifyToken);
-      if (tasteProfile && Array.isArray(form.recentSessions)) {
+      if (tasteProfile) {
+        // librarySize feeds the userMaturity bucket so a user with a thin
+        // Spotify history but several saved Moodcast sessions still counts
+        // as 'learning' / 'established'.
+        let librarySize = 0;
+        try { librarySize = listSessions().length; } catch { /* fs unavailable — treat as 0 */ }
         tasteProfile.contextualSignals = analyzeListeningPatterns(
           tasteProfile.recentTracks,
           tasteProfile.topTracks,
-          form.recentSessions,
+          Array.isArray(form.recentSessions) ? form.recentSessions : [],
+          librarySize,
         );
       }
     } catch {
@@ -112,6 +118,13 @@ export async function POST(req: NextRequest) {
   try {
     const prefs = readPreferences();
     const dial: DiscoveryDial = momentContext?.discoveryRecommendation ?? prefs.discoveryDial;
+
+    const maturity = tasteProfile?.contextualSignals?.userMaturity ?? 'established';
+    const mixLabel =
+      maturity === 'new' && (dial === 'familiar' || dial === 'balanced')
+        ? 'taste-safe-70-30'
+        : dial;
+    console.log(`[discovery] maturity=${maturity} dial=${dial} mix=${mixLabel}`);
 
     let session: MoodcastSession = await generateMoodcastSession({
       form,

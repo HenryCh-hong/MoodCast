@@ -22,6 +22,8 @@ import chalk from 'chalk';
 import { startCommand } from './start.js';
 import { statusCommand } from './status.js';
 import { playCommand } from './play.js';
+import { authCommand } from './auth.js';
+import { trackCommand } from './track.js';
 import {
   calendarConnect,
   calendarDisconnect,
@@ -35,6 +37,7 @@ import {
   deleteCmd as sessionsDeleteCmd,
 } from './sessions.js';
 import { pickSession } from '../sessionPicker.js';
+import { setShellMode } from '../utils/shellContext.js';
 
 interface ShellState {
   rl: readline.Interface;
@@ -45,6 +48,8 @@ const PROMPT = `${chalk.hex('#c4b5fd')('moodcast')}${chalk.dim('>')} `;
 
 const HELP_LINES: Array<[string, string]> = [
   ['help', 'show this list'],
+  ['auth', 'connect Spotify (PKCE in browser)'],
+  ['spotify auth', 'connect Spotify (alias)'],
   ['status', 'spotify connection / device / now-playing'],
   ['start', 'tune a new session (respects saved tuningMode)'],
   ['start --auto', 'auto tune (skip tag picker)'],
@@ -59,6 +64,7 @@ const HELP_LINES: Array<[string, string]> = [
   ['sessions show [id]', 'show details (no id → picker)'],
   ['sessions play  [id]', 'play a session (no id → picker)'],
   ['sessions delete <id>', 'delete a session by id (confirm)'],
+  ['track <n>', 'play track N of the current active session (1-indexed)'],
   ['calendar status', 'apple calendar connection state'],
   ['calendar connect', 'connect apple calendar'],
   ['calendar disconnect', 'disconnect apple calendar'],
@@ -241,6 +247,20 @@ async function dispatch(state: ShellState, line: string): Promise<void> {
     q: ['quit'],
   };
   const headRaw = tokens[0].toLowerCase();
+  const secondRaw = (tokens[1] ?? '').toLowerCase();
+
+  // Two-word shortcuts:
+  //   `spotify auth`     → auth
+  //   `connect spotify`  → auth
+  //   `spotify login`    → auth
+  if (
+    (headRaw === 'spotify' && (secondRaw === 'auth' || secondRaw === 'login' || secondRaw === 'connect')) ||
+    (headRaw === 'connect' && secondRaw === 'spotify')
+  ) {
+    await authCommand();
+    return;
+  }
+
   const expanded = aliasMap[headRaw]
     ? [...aliasMap[headRaw], ...tokens.slice(1)]
     : [headRaw, ...tokens.slice(1)];
@@ -255,6 +275,17 @@ async function dispatch(state: ShellState, line: string): Promise<void> {
     case 'quit':
     case 'exit':
       state.shouldExit = true;
+      return;
+    case 'auth':
+    case 'login':
+      await authCommand();
+      return;
+    case 'track':
+      if (!rest[0]) {
+        console.log(`  ${chalk.dim('usage:')} ${chalk.bold('track <n>')}  ${chalk.dim('(1-indexed)')}`);
+        return;
+      }
+      await trackCommand(rest[0]);
       return;
     case 'status':
       await statusCommand();
@@ -293,6 +324,7 @@ async function dispatch(state: ShellState, line: string): Promise<void> {
 // ─── Entry point ──────────────────────────────────────────────────────────
 
 export async function shellCommand(): Promise<void> {
+  setShellMode(true);
   printBanner();
 
   const rl = readline.createInterface({
@@ -322,10 +354,21 @@ export async function shellCommand(): Promise<void> {
 
   rl.prompt();
 
+  // Serialize dispatches via a promise chain. Piped stdin (`printf 'a\nb\n'`)
+  // can deliver multiple `line` events before any one finishes, and stdin EOF
+  // can fire `close` while a command is still running. Chaining ensures every
+  // dispatch and the sign-off all run in order.
+  let chain: Promise<void> = Promise.resolve();
+  let rlClosed = false;
+  rl.on('close', () => {
+    rlClosed = true;
+  });
+
   rl.on('line', (line) => {
-    // Pause readline while a sub-command runs so it can grab raw stdin freely.
+    // Pause readline so sub-commands that grab raw stdin (e.g. tag picker)
+    // don't race with the next line we already received.
     rl.pause();
-    void (async () => {
+    chain = chain.then(async () => {
       try {
         await dispatch(state, line);
       } catch (err) {
@@ -333,20 +376,30 @@ export async function shellCommand(): Promise<void> {
         console.error(`  ${chalk.red('!')} ${msg}`);
       }
       if (state.shouldExit) {
-        rl.close();
+        if (!rlClosed) rl.close();
         return;
       }
+      // If a prior dispatch (e.g. `quit`) closed the shell while this one was
+      // queued behind it on the chain, don't try to resume / re-prompt.
+      if (rlClosed) return;
       rl.resume();
       rl.prompt();
-    })();
+    });
   });
 
   await new Promise<void>((resolve) => {
     rl.on('close', () => {
-      console.log('');
-      console.log(`  ${chalk.dim('signing off.')}`);
-      console.log('');
-      resolve();
+      // Wait for the full dispatch chain before printing sign-off so any
+      // still-running command can render its output (and read isShellMode())
+      // before the shell tears down.
+      void chain.then(() => {
+        console.log('');
+        console.log(`  ${chalk.dim('signing off.')}`);
+        console.log('');
+        resolve();
+      });
     });
   });
+
+  setShellMode(false);
 }

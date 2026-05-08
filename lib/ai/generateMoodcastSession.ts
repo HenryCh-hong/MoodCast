@@ -17,6 +17,12 @@ interface GenerateOptions {
   extraInstruction?: string;
 }
 
+// Pull maturity off the taste profile if present. Defaults to 'established'
+// (the historical behavior) so existing callers and tests stay unchanged.
+function maturityFor(opts: GenerateOptions): 'new' | 'learning' | 'established' {
+  return opts.tasteProfile?.contextualSignals?.userMaturity ?? 'established';
+}
+
 function parseSession(raw: string): MoodcastSession {
   const json = raw
     .replace(/^```json\s*/i, '')
@@ -84,7 +90,7 @@ async function generateWithClaude(opts: GenerateOptions): Promise<MoodcastSessio
             opts.momentContext,
             opts.selectedTags,
             opts.discoveryDial,
-            { extraInstruction: opts.extraInstruction },
+            { extraInstruction: opts.extraInstruction, userMaturity: maturityFor(opts) },
           ),
         },
       ],
@@ -116,7 +122,7 @@ async function generateWithGemini(opts: GenerateOptions): Promise<MoodcastSessio
         opts.momentContext,
         opts.selectedTags,
         opts.discoveryDial,
-        { extraInstruction: opts.extraInstruction },
+        { extraInstruction: opts.extraInstruction, userMaturity: maturityFor(opts) },
       )
     );
     raw = result.response.text();

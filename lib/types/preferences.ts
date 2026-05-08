@@ -38,7 +38,10 @@ export const DEFAULT_PREFERENCES: MoodcastPreferences = {
   discoveryDial: 'balanced',
   tuningMode: 'ask',
 
-  voiceEnabled: true,
+  // Voice defaults to OFF so first-time users aren't surprised by browser
+  // TTS narrating over their music. The toggle is one click away in the
+  // MooC voice & ambient panel.
+  voiceEnabled: false,
   voiceMode: 'transitions',
   voiceVolume: 70,
   voiceRate: 0.95,

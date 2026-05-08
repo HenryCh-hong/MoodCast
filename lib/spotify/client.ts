@@ -1,3 +1,5 @@
+import { sanitizeSpotifyTrackUris } from './uris';
+
 const BASE = 'https://api.spotify.com/v1';
 
 export class SpotifyAPIError extends Error {
@@ -73,15 +75,36 @@ export async function transferPlayback(token: string, deviceId: string): Promise
 }
 
 // Step 2: start playback of specific URIs on the given device.
+//
+// Always sends an explicit `offset.position` so Spotify never falls back to
+// "resume the existing context" behaviour when the new uris overlap the
+// device's previous queue. Default position is 0 — caller must pass an
+// explicit starting index when they want a different starting track. The
+// FULL uris array is sent (no slicing) so Spotify's auto-advance walks the
+// remainder of the session naturally.
+//
+// Last line of defense: re-sanitizes the URI list and refuses to call
+// Spotify with anything but valid `spotify:track:…` URIs. If sanitization
+// removes everything, throws — better a clear error than `Invalid track
+// uri: ""` from Spotify.
 export async function startPlayback(
   token: string,
   deviceId: string,
-  uris: string[]
+  uris: string[],
+  offsetPosition: number = 0
 ): Promise<void> {
+  const clean = sanitizeSpotifyTrackUris(uris);
+  if (clean.length === 0) {
+    throw new Error('No playable Spotify track URIs');
+  }
+  const safePosition = Math.max(0, Math.min(offsetPosition, clean.length - 1));
   await spotifyFetch<void>(
     `/me/player/play?device_id=${deviceId}`,
     token,
-    { method: 'PUT', body: JSON.stringify({ uris }) }
+    {
+      method: 'PUT',
+      body: JSON.stringify({ uris: clean, offset: { position: safePosition }, position_ms: 0 }),
+    }
   );
 }
 
@@ -141,13 +164,17 @@ export async function addTracksToPlaylist(
   playlistId: string,
   uris: string[]
 ): Promise<void> {
+  // Sanitize first — Spotify rejects the whole add-tracks call if any URI
+  // is invalid, so an empty string would lose a whole playlist of work.
+  const clean = sanitizeSpotifyTrackUris(uris);
+  if (clean.length === 0) return;
   // Spotify accepts max 100 URIs per call. Batches are sequential and not atomic —
   // a failure mid-way leaves the playlist partially populated.
-  for (let i = 0; i < uris.length; i += 100) {
+  for (let i = 0; i < clean.length; i += 100) {
     await spotifyFetch<void>(
       `/playlists/${playlistId}/tracks`,
       token,
-      { method: 'POST', body: JSON.stringify({ uris: uris.slice(i, i + 100) }) }
+      { method: 'POST', body: JSON.stringify({ uris: clean.slice(i, i + 100) }) }
     );
   }
 }

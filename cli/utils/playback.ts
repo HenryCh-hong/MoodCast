@@ -7,12 +7,12 @@
 // device }`) or fully fails (returns `{ ok: false, reason, ... }`). Callers
 // should never enter the dashboard's ON AIR state on failure.
 
-import chalk from 'chalk';
 import {
   startPlayback,
   SpotifyAPIError,
   type SpotifyDevice,
 } from '../../lib/spotify/client.js';
+import { sanitizeSpotifyTrackUris, countDroppedUris } from '../../lib/spotify/uris.js';
 import {
   resolveDevice,
   ensureActive,
@@ -20,6 +20,7 @@ import {
 } from './devices.js';
 import { debugLog } from './debugLog.js';
 import { error, recovery, panel, panelLine } from '../display.js';
+import { rerunHint } from './shellContext.js';
 
 export type PlaybackFailureReason =
   | 'no_uris'
@@ -38,11 +39,16 @@ export interface PlaybackResult {
 }
 
 interface StartContext {
-  // Identifier shown in user-facing recovery hints, e.g. "moodcast start"
-  // or "moodcast sessions play <id>".
+  // Bare command verb shown in user-facing recovery hints, e.g. "start" or
+  // "sessions play <id>". The hint is rendered context-aware: inside the
+  // shell as `type ${verb}`, outside as `npm run moodcast ${verb}`.
   retryHint: string;
   // Whether to attempt verification after startPlayback. Default true.
   verify?: boolean;
+  // 0-indexed position in `uris` to start at. Default 0. The full uris are
+  // sent with explicit offset.position so Spotify never resumes from a
+  // prior context.
+  startIndex?: number;
 }
 
 /**
@@ -55,11 +61,18 @@ export async function startSessionPlayback(
   uris: string[],
   ctx: StartContext,
 ): Promise<PlaybackResult> {
-  if (uris.length === 0) {
-    error('No playable Spotify URIs in this session.');
+  // Sanitize first — empty strings, nulls, and non-track URIs would all
+  // cause Spotify to reject the whole call with `Invalid track uri: ""`.
+  const cleanUris = sanitizeSpotifyTrackUris(uris);
+  const dropped = countDroppedUris(uris);
+  if (dropped > 0) {
+    debugLog('playback.handoff.dropped_invalid_uris', { count: dropped });
+  }
+  if (cleanUris.length === 0) {
+    error('This session has no playable Spotify track URIs.');
     recovery([
-      'try a fresh session: ' + chalk.bold('npm run moodcast start'),
-      'or use ' + chalk.bold('npm run moodcast sessions show <id>') + ' to inspect the queue',
+      'try a fresh session: ' + rerunHint('start'),
+      'or use ' + rerunHint('sessions show <id>') + ' to inspect the queue',
     ]);
     return { ok: false, reason: 'no_uris' };
   }
@@ -71,7 +84,7 @@ export async function startSessionPlayback(
     error('No Spotify device found after retries.');
     recovery([
       'open Spotify on your phone or desktop, OR open Moodcast Web Playback in a browser tab',
-      'then re-run: ' + chalk.bold(ctx.retryHint),
+      rerunHint(ctx.retryHint),
     ]);
     return { ok: false, reason: 'no_device' };
   }
@@ -107,23 +120,25 @@ export async function startSessionPlayback(
       error(`Device "${device.name}" is no longer reachable.`);
       recovery([
         'reload the Moodcast browser tab or reopen Spotify',
-        'then re-run: ' + chalk.bold(ctx.retryHint),
+        rerunHint(ctx.retryHint),
       ]);
       return { ok: false, reason: 'device_lost' };
     }
     error(`Could not transfer playback to ${device.name}: ${err instanceof Error ? err.message : String(err)}`);
-    recovery(['re-run: ' + chalk.bold(ctx.retryHint)]);
+    recovery([rerunHint(ctx.retryHint)]);
     return { ok: false, reason: 'transfer_failed' };
   }
 
   // Issue play.
+  const startIndex = Math.max(0, Math.min(ctx.startIndex ?? 0, cleanUris.length - 1));
   try {
-    await startPlayback(token, device.id, uris);
+    await startPlayback(token, device.id, cleanUris, startIndex);
     debugLog('playback.handoff.play_ok', {
       device_name: device.name,
       id_suffix: device.id.slice(-6),
-      uri_count: uris.length,
-      first_uri_kind: uris[0]?.split(':')[1] ?? 'unknown',
+      uri_count: cleanUris.length,
+      start_index: startIndex,
+      first_uri_kind: cleanUris[0]?.split(':')[1] ?? 'unknown',
     });
   } catch (err) {
     debugLog('playback.handoff.play_failed', {
@@ -144,12 +159,12 @@ export async function startSessionPlayback(
       error('Device disappeared between transfer and play.');
       recovery([
         'reload the Moodcast browser tab',
-        'then re-run: ' + chalk.bold(ctx.retryHint),
+        rerunHint(ctx.retryHint),
       ]);
       return { ok: false, reason: 'device_lost' };
     }
     error(`Playback failed: ${err instanceof Error ? err.message : String(err)}`);
-    recovery(['re-run: ' + chalk.bold(ctx.retryHint)]);
+    recovery([rerunHint(ctx.retryHint)]);
     return { ok: false, reason: 'play_failed', errorMessage: err instanceof Error ? err.message : String(err) };
   }
 
@@ -158,7 +173,7 @@ export async function startSessionPlayback(
   if (ctx.verify === false) {
     return { ok: true, device };
   }
-  const verify = await verifyPlayback(token, device.id, { expectedUri: uris[0] });
+  const verify = await verifyPlayback(token, device.id, { expectedUri: cleanUris[startIndex] });
   if (!verify.ok) {
     error(
       `Spotify accepted the play command, but no audio is coming from "${device.name}".` +
@@ -168,7 +183,7 @@ export async function startSessionPlayback(
     );
     recovery([
       'click play once on the Moodcast browser tab (or open Spotify and play any track)',
-      'then re-run: ' + chalk.bold(ctx.retryHint),
+      rerunHint(ctx.retryHint),
     ]);
     return { ok: false, reason: 'verify_failed', device };
   }

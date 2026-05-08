@@ -6,6 +6,7 @@ import { header, panel, panelLine, nowPlaying, recovery } from '../display.js';
 import { pingServer } from '../utils/serverPing.js';
 import { readPreferences } from '../../lib/storage/preferencesServer.js';
 import { readAppleStatus } from '../../lib/calendar/appleCredentialStore.js';
+import { authRecoveryHint, deviceRecoveryHint, isShellMode } from '../utils/shellContext.js';
 
 interface SpotifyPlaybackState {
   is_playing: boolean;
@@ -136,6 +137,15 @@ export async function statusCommand() {
   // Discovery dial row
   lines.push(panelLine('discovery', prefs.discoveryDial, 'on'));
 
+  // Voice row — reflects the web-side TTS toggle. CLI does not currently
+  // speak cues; this is informational so a user who turned voice off in the
+  // web app can confirm it from the terminal too.
+  if (!prefs.voiceEnabled || prefs.voiceMode === 'off') {
+    lines.push(panelLine('voice', 'off', 'off'));
+  } else {
+    lines.push(panelLine('voice', prefs.voiceMode, 'on'));
+  }
+
   panel('Signal Check', lines);
 
   // Now playing block
@@ -157,18 +167,17 @@ export async function statusCommand() {
 
   // Recovery hints
   if (!server.online) {
+    const rerun = isShellMode()
+      ? `then type ${chalk.bold('status')}`
+      : 'then re-run: ' + chalk.bold('npm run moodcast --silent -- status');
     recovery([
       'in another terminal: ' + chalk.bold('npm run dev -- -p 3001'),
-      'then re-run: ' + chalk.bold('npm run moodcast status'),
+      rerun,
     ]);
   } else if (!token) {
-    recovery([
-      chalk.bold('npm run moodcast auth') + ' to connect Spotify',
-    ]);
+    recovery([authRecoveryHint()]);
   } else if (deviceState === 'off') {
-    recovery([
-      'open Spotify on any device, or start the Moodcast Web Playback in a browser tab',
-    ]);
+    recovery([deviceRecoveryHint()]);
   }
 
   console.log('');

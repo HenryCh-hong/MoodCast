@@ -7,6 +7,7 @@ import {
   startPlayback,
   SpotifyAPIError,
 } from '../lib/spotify/client.js';
+import { sanitizeSpotifyTrackUris, isValidSpotifyTrackUri } from '../lib/spotify/uris.js';
 import { resolveDevice, ensureActive } from './utils/devices.js';
 import { startKeyboard, type Key } from './utils/keyboard.js';
 import { enterAltScreen, leaveAltScreen, clearAndHome } from './utils/altScreen.js';
@@ -53,6 +54,11 @@ interface DashboardState {
   status: string;
   external: boolean;
   consecutiveFails: number;
+  // 0-indexed position in the *current* session's track list. Source of
+  // truth for next/previous; reconciled against snapshot.trackUri on every
+  // poll. Tracks the same invariant as MoodcastContext.sessionIndex on the
+  // web side. Null means "no session active or unknown".
+  sessionIdx: number | null;
 }
 
 export async function runDashboard(opts: DashboardOptions): Promise<void> {
@@ -68,6 +74,7 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
     status: opts.session ? `ON AIR — ${opts.session.sessionTitle}` : 'ON AIR — following Spotify',
     external: false,
     consecutiveFails: 0,
+    sessionIdx: opts.session ? 0 : null,
   };
 
   // Reset poll cache so the very first tick reads any session that already exists.
@@ -104,6 +111,9 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
     state.lastTrackUri = null; // force cue re-resolve on next poll
     state.cue = null;
     state.status = `ON AIR — ${record.session.sessionTitle}`;
+    // Reset the local index — a stale index from the previous session would
+    // silently mis-target next/previous against the new track list.
+    state.sessionIdx = 0;
     if (prevId !== null) {
       showToast(
         `session changed → ${record.session.sessionTitle} (${record.source})`
@@ -146,12 +156,32 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
         };
         state.consecutiveFails = 0;
 
-        // Track-change detection — uses the *current* session in state
+        // Track-change detection — uses the *current* session in state.
+        // sessionIdx is index into the SANITIZED playable URI list, the
+        // same indexing used everywhere else for next/previous.
         if (newUri !== state.lastTrackUri) {
           state.lastTrackUri = newUri;
           const sess = state.session;
           if (sess) {
-            const moodTrack = sess.tracks.find((t) => t.uri === newUri);
+            const playable = sanitizeSpotifyTrackUris(
+              sess.tracks.map((t) => t.uri ?? ''),
+            );
+            const start = state.sessionIdx ?? 0;
+            let nextIdx = -1;
+            for (let i = start; i < playable.length; i += 1) {
+              if (playable[i] === newUri) { nextIdx = i; break; }
+            }
+            if (nextIdx === -1) {
+              for (let i = start - 1; i >= 0; i -= 1) {
+                if (playable[i] === newUri) { nextIdx = i; break; }
+              }
+            }
+            const moodTrack = nextIdx >= 0
+              ? sess.tracks.find((t) => t.uri === newUri)
+              : undefined;
+            if (moodTrack && nextIdx !== state.sessionIdx) {
+              state.sessionIdx = nextIdx;
+            }
             state.external = !moodTrack;
             if (moodTrack?.transitionLine) {
               state.cue = { text: moodTrack.transitionLine, expiresAt: Date.now() + CUE_DURATION_MS };
@@ -221,33 +251,36 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
         return;
       }
 
-      // Session-aware skip: if the current track is in our session, jump in our list
+      // Session-aware skip via the locally tracked sessionIdx (reconciled
+      // every poll). Sends the SANITIZED session uris with an explicit
+      // offset.position — never slices, never additionally calls native
+      // /me/player/next, so we can't double-fire a +2 jump.
       const sess = state.session;
-      if (sess && state.snapshot?.trackUri) {
-        const tracks = sess.tracks;
-        const idx = tracks.findIndex((t) => t.uri === state.snapshot!.trackUri);
-        if (idx >= 0) {
-          const targetIdx = direction === 'next' ? idx + 1 : idx - 1;
-          if (targetIdx >= 0 && targetIdx < tracks.length) {
-            const sliceUris = tracks
-              .slice(targetIdx)
-              .map((t) => t.uri ?? '')
-              .filter((u) => u.startsWith('spotify:track:'));
-            if (sliceUris.length > 0) {
-              await ensureActive(token, dev);
-              await startPlayback(token, dev.id, sliceUris);
-              showToast(direction === 'next' ? 'Cueing next' : 'Going back');
-              void poll();
-              return;
-            }
-          } else {
-            showToast(direction === 'next' ? 'End of session' : 'Start of session');
-            return;
-          }
+      if (sess && typeof state.sessionIdx === 'number') {
+        const playable = sanitizeSpotifyTrackUris(
+          sess.tracks.map((t) => t.uri ?? ''),
+        );
+        const targetIdx =
+          direction === 'next' ? state.sessionIdx + 1 : state.sessionIdx - 1;
+        if (targetIdx < 0 || targetIdx >= playable.length) {
+          showToast(direction === 'next' ? 'End of session' : 'Start of session');
+          return;
+        }
+        const targetUri = playable[targetIdx];
+        if (!isValidSpotifyTrackUri(targetUri)) {
+          showToast('Track has no Spotify URI · skipping');
+          // Fall through to native skip
+        } else {
+          await ensureActive(token, dev);
+          await startPlayback(token, dev.id, playable, targetIdx);
+          state.sessionIdx = targetIdx; // optimistic; reconciliation happens on next poll
+          showToast(direction === 'next' ? 'Cueing next' : 'Going back');
+          void poll();
+          return;
         }
       }
 
-      // Fallback: native skip on the device
+      // Fallback: native skip on the device.
       await ensureActive(token, dev);
       const path = direction === 'next' ? '/me/player/next' : '/me/player/previous';
       await spotifyFetch<void>(`${path}?device_id=${dev.id}`, token, { method: 'POST' });

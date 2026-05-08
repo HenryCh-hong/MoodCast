@@ -56,27 +56,38 @@ export async function exchangeCode(code: string, codeVerifier: string) {
   }>;
 }
 
+// PKCE refresh — sends client_id in the body, no client secret.
+// Spotify rotates the refresh token on each refresh, so we accept and persist
+// the new one when present.
 export async function refreshAccessToken(refreshToken: string) {
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(
-        `${requireEnv('SPOTIFY_CLIENT_ID')}:${requireEnv('SPOTIFY_CLIENT_SECRET')}`
-      ).toString('base64')}`,
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
+      client_id: requireEnv('SPOTIFY_CLIENT_ID'),
     }),
   });
   if (!res.ok) throw new Error('Token refresh failed');
-  return res.json() as Promise<{ access_token: string; expires_in: number }>;
+  return res.json() as Promise<{
+    access_token: string;
+    expires_in: number;
+    refresh_token?: string;
+  }>;
 }
 
 export async function getAccessToken(): Promise<string | null> {
   const jar = await cookies();
   return jar.get('spotify_access_token')?.value ?? null;
+}
+
+// Dev-only diagnostic logger. Never accepts a token or other secret value
+// as input — only structural facts ("present"/"missing", durations, error
+// shapes). Production silently no-ops.
+function devLog(event: string, fields: Record<string, string | number | boolean>): void {
+  if (process.env.NODE_ENV !== 'development') return;
+  console.log(`[spotify-auth] ${event}`, fields);
 }
 
 export async function getValidAccessToken(): Promise<string | null> {
@@ -85,17 +96,39 @@ export async function getValidAccessToken(): Promise<string | null> {
   const expiresAt = Number(jar.get('spotify_expires_at')?.value ?? '0');
   const refreshToken = jar.get('spotify_refresh_token')?.value ?? null;
 
-  if (!refreshToken) return null;
+  if (!refreshToken) {
+    // Distinguish from refresh-failed in diagnostics. Caller treats both as
+    // null today, but the dev log makes it possible to see which path fired.
+    devLog('no_refresh_token', {
+      hasAccessCookie: !!accessToken,
+      hasExpiresAtCookie: expiresAt > 0,
+    });
+    return null;
+  }
 
   // Refresh 60 seconds before expiry to avoid edge-case expiry mid-request
-  if (accessToken && Date.now() < expiresAt - 60_000) return accessToken;
+  if (accessToken && Date.now() < expiresAt - 60_000) {
+    devLog('cached_token_ok', {
+      msUntilExpiry: expiresAt - Date.now(),
+    });
+    return accessToken;
+  }
 
   // Need to refresh
   try {
     const tokens = await refreshAccessToken(refreshToken);
-    await setTokenCookies(tokens.access_token, refreshToken, tokens.expires_in);
+    // Spotify may rotate the refresh token under PKCE; persist the new one when given.
+    const nextRefresh = tokens.refresh_token ?? refreshToken;
+    await setTokenCookies(tokens.access_token, nextRefresh, tokens.expires_in);
+    devLog('refresh_ok', {
+      rotatedRefreshToken: !!tokens.refresh_token,
+      expiresInSec: tokens.expires_in,
+    });
     return tokens.access_token;
-  } catch {
+  } catch (err) {
+    devLog('refresh_failed', {
+      message: err instanceof Error ? err.message.slice(0, 120) : 'unknown',
+    });
     return null;
   }
 }

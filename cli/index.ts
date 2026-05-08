@@ -7,6 +7,8 @@ import { startCommand } from './commands/start.js';
 import { statusCommand } from './commands/status.js';
 import { playCommand } from './commands/play.js';
 import { shellCommand } from './commands/shell.js';
+import { authCommand } from './commands/auth.js';
+import { trackCommand } from './commands/track.js';
 import {
   calendarConnect,
   calendarDisconnect,
@@ -163,20 +165,11 @@ calendar
 program
   .command('auth')
   .description('Open browser to authorize Spotify for CLI use')
-  .action(async () => {
-    const open = (await import('open')).default;
-    // Derive base URL from SPOTIFY_REDIRECT_URI so it always matches the running dev server.
-    // e.g. http://127.0.0.1:3001/api/auth/spotify/callback → http://127.0.0.1:3001
-    const redirectUri = process.env.SPOTIFY_REDIRECT_URI ?? 'http://127.0.0.1:3001/api/auth/spotify/callback';
-    const base = new URL(redirectUri).origin;
-    const url = `${base}/api/auth/spotify?cli=1`;
-    console.log('');
-    console.log('  Opening browser for Spotify authorization…');
-    console.log(`  URL: ${url}`);
-    console.log('');
-    await open(url);
-    console.log('  After authorizing in the browser, run `npm run moodcast status` to confirm.');
-    console.log('');
-  });
+  .action(() => authCommand());
+
+program
+  .command('track <n>')
+  .description('Play track N (1-indexed) of the currently active Moodcast session')
+  .action((n: string) => trackCommand(n));
 
 program.parse();

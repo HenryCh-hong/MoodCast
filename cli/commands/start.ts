@@ -38,6 +38,9 @@ import { writeActiveSession } from '../../lib/sessions/activeSession.js';
 import { appendSession } from '../../lib/sessions/sessionLibrary.js';
 import { resetPollCache } from '../utils/activeSessionPoll.js';
 import { buildMomentContext } from '../../lib/context/momentContext.js';
+import { authRecoveryHint, rerunHint, isShellMode } from '../utils/shellContext.js';
+import { analyzeListeningPatterns } from '../../lib/taste/contextual.js';
+import { listSessions } from '../../lib/sessions/sessionLibrary.js';
 import { suggestTags } from '../../lib/tags/suggest.js';
 import { pickTags } from '../tagPicker.js';
 import { pickTuningMode } from '../tuningModePicker.js';
@@ -217,6 +220,18 @@ export async function startCommand(opts: StartOptions = {}): Promise<void> {
     }
     try {
       taste = await buildTasteProfile(token);
+      // Compute contextualSignals + userMaturity here so CLI generations
+      // get the same adaptive 70/30 default as the web. listSessions counts
+      // the shared library at ~/.moodcast/sessions.
+      try {
+        const librarySize = listSessions().length;
+        taste.contextualSignals = analyzeListeningPatterns(
+          taste.recentTracks,
+          taste.topTracks,
+          [],
+          librarySize,
+        );
+      } catch { /* signals optional */ }
       sigLines.push(panelLine('taste profile', `${taste.topArtists.length} artists`, 'on'));
     } catch {
       sigLines.push(panelLine('taste profile', 'unavailable', 'warn'));
@@ -227,12 +242,12 @@ export async function startCommand(opts: StartOptions = {}): Promise<void> {
   if (!server.online) {
     recovery([
       'in another terminal run: ' + chalk.bold('npm run dev -- -p 3001'),
-      'then re-run: ' + chalk.bold('npm run moodcast start'),
+      rerunHint('start'),
     ]);
     return;
   }
   if (!token) {
-    recovery([chalk.bold('npm run moodcast auth') + ' to connect Spotify']);
+    recovery([authRecoveryHint()]);
     return;
   }
 
@@ -349,6 +364,12 @@ export async function startCommand(opts: StartOptions = {}): Promise<void> {
     buildBar(1, 4, 'reading taste memory');
     buildBar(2, 4, 'arranging cue');
     const dial = ctx.discoveryRecommendation;
+    const maturity = taste?.contextualSignals?.userMaturity ?? 'established';
+    const mixLabel =
+      maturity === 'new' && (dial === 'familiar' || dial === 'balanced')
+        ? 'taste-safe-70-30'
+        : dial;
+    console.error(chalk.dim(`  [discovery] maturity=${maturity} dial=${dial} mix=${mixLabel}`));
     session = await generateMoodcastSession({
       form,
       tasteProfile: taste,
@@ -433,7 +454,7 @@ export async function startCommand(opts: StartOptions = {}): Promise<void> {
       const otherProvider = err.provider === 'gemini' ? 'ANTHROPIC_API_KEY' : 'GOOGLE_API_KEY';
       const sameKeyEnv = err.provider === 'gemini' ? 'GOOGLE_API_KEY' : 'ANTHROPIC_API_KEY';
       const steps = [
-        'wait for the provider quota to reset, then re-run: ' + chalk.bold('npm run moodcast start'),
+        'wait for the provider quota to reset, ' + rerunHint('start'),
         `switch keys: update ${chalk.bold(sameKeyEnv)} in ${chalk.bold('.env.local')}`,
         `or switch provider: set ${chalk.bold(otherProvider)} and ${chalk.bold('AI_PROVIDER=' + (err.provider === 'gemini' ? 'anthropic' : 'gemini'))}`,
       ];
@@ -446,7 +467,7 @@ export async function startCommand(opts: StartOptions = {}): Promise<void> {
     error(`Generation failed: ${err instanceof Error ? err.message : String(err)}`);
     recovery([
       'check that GOOGLE_API_KEY or ANTHROPIC_API_KEY is set in .env.local',
-      'then re-run: ' + chalk.bold('npm run moodcast start'),
+      rerunHint('start'),
     ]);
     return;
   }
@@ -460,7 +481,7 @@ export async function startCommand(opts: StartOptions = {}): Promise<void> {
     .filter((u) => u.startsWith('spotify:track:'));
 
   const result = await startSessionPlayback(token, uris, {
-    retryHint: 'npm run moodcast start',
+    retryHint: 'start',
   });
   if (!result.ok) return;
 
@@ -475,10 +496,13 @@ export async function startCommand(opts: StartOptions = {}): Promise<void> {
 
   if (opts.noDashboard) {
     console.log('');
+    const statusInvocation = isShellMode()
+      ? chalk.bold('status')
+      : chalk.bold('npm run moodcast --silent -- status');
     console.log(
       '  ' +
         chalk.dim(`${session.tracks.length} tracks queued · run `) +
-        chalk.bold('npm run moodcast status') +
+        statusInvocation +
         chalk.dim(' to track the room')
     );
     console.log('');

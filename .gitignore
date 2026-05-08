@@ -41,3 +41,22 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .superpowers/
+
+# Local-only personal docs — never push these.
+# Anything beginning with LOCAL_ at the repo root, anything inside docs/local/,
+# and any *.local.md file anywhere in the tree.
+LOCAL_*
+/docs/local/
+*.local.md
+
+# Claude / AI-assistant private files — local instructions and plugin
+# state never belong on GitHub. AGENTS.md is the public, vendor-neutral
+# convention; CLAUDE.md is the Claude-specific local override.
+/CLAUDE.md
+/.claude/
+/docs/superpowers/
+
+# Local Moodcast data — these never appear in the repo, but a stray copy
+# could; ignore explicitly so a paste accident is silently ignored too.
+**/.moodcast/
+moodcast-tokens.json

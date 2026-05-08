@@ -9,6 +9,7 @@ import {
 } from '../../lib/spotify/client.js';
 import { resolveDevice, ensureActive } from '../utils/devices.js';
 import { header, error, success, recovery } from '../display.js';
+import { authRecoveryHint, rerunHint } from '../utils/shellContext.js';
 
 const VERBS: Record<string, string> = {
   play: 'tuning back in',
@@ -31,7 +32,7 @@ export async function playCommand(action: 'play' | 'pause' | 'next' | 'prev') {
   const token = await getValidToken();
   if (!token) {
     error('Not authenticated.');
-    recovery([chalk.bold('npm run moodcast auth') + ' to connect Spotify']);
+    recovery([authRecoveryHint()]);
     return;
   }
 
@@ -41,7 +42,7 @@ export async function playCommand(action: 'play' | 'pause' | 'next' | 'prev') {
     error('No active Spotify device found.');
     recovery([
       'open Spotify on your phone or desktop, OR start Moodcast Web Playback in a browser tab',
-      'then re-run: ' + chalk.bold(`npm run moodcast ${action}`),
+      rerunHint(action === 'prev' ? 'previous' : action),
     ]);
     return;
   }
@@ -58,7 +59,7 @@ export async function playCommand(action: 'play' | 'pause' | 'next' | 'prev') {
       error('Device disappeared during the command.');
       recovery([
         'open Spotify and play any track to wake the device',
-        'then re-run: ' + chalk.bold(`npm run moodcast ${action}`),
+        rerunHint(action === 'prev' ? 'previous' : action),
       ]);
       return;
     }

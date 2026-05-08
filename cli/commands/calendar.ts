@@ -27,6 +27,7 @@ import {
   success,
   recovery,
 } from '../display.js';
+import { isShellMode } from '../utils/shellContext.js';
 
 function promptLine(question: string): Promise<string> {
   return new Promise((resolve) => {
@@ -209,8 +210,9 @@ export async function calendarStatus(): Promise<void> {
   if (!status.connected) {
     console.log(`  ${chalk.dim('Apple Calendar:')} ${chalk.red('not connected')}`);
     console.log('');
+    const verb = isShellMode() ? 'calendar connect' : 'npm run moodcast --silent -- calendar connect';
     console.log(
-      `  ${chalk.dim('Run')} ${chalk.bold('npm run moodcast calendar connect')} ${chalk.dim('to set up.')}`
+      `  ${chalk.dim('Run')} ${chalk.bold(verb)} ${chalk.dim('to set up.')}`
     );
     console.log('');
     return;

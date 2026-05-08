@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "moodcast": "tsx cli/index.ts"
+    "moodcast": "tsx cli/index.ts",
+    "test:queue": "tsx tests/queueMapping.test.ts"
   },
   "bin": {
     "moodcast": "./cli/index.ts"

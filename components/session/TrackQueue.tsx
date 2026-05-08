@@ -1,13 +1,30 @@
 import { cn } from '@/lib/utils';
+import { useMemo } from 'react';
 import type { Track } from '@/lib/types/moodcast';
+import {
+  buildSessionQueueMapping,
+  playableToRawIndex,
+} from '@/lib/session/queueMapping';
+import { isValidSpotifyTrackUri } from '@/lib/spotify/uris';
 
 interface TrackQueueProps {
   tracks: Track[];
-  playerState?: {
-    track_window: {
-      current_track: { uri: string };
-    };
-  } | null;
+  /**
+   * Current playable-index in the session queue. Source of truth for which
+   * row is NOW and which is NEXT — supplied by MoodcastContext, not
+   * inferred from `track.uri === currentUri` (which is wrong on duplicate
+   * URIs and unreliable when a row has no URI).
+   */
+  sessionIndex?: number | null;
+  /**
+   * When provided, each row becomes a "play from this track" action.
+   * The session page wires this up to playFromRowIndex(i), which translates
+   * the raw row index to a playable index and POSTs to /api/playback/start.
+   * Omit on session pages where the user can't play — rows fall back to a
+   * static display.
+   */
+  onPlayTrack?: (index: number) => void;
+  playbackPending?: boolean;
 }
 
 const FAMILIARITY_LABEL: Record<NonNullable<Track['familiarityLevel']>, string> = {
@@ -16,20 +33,35 @@ const FAMILIARITY_LABEL: Record<NonNullable<Track['familiarityLevel']>, string> 
   discovery: 'discovery',
 };
 
-export function TrackQueue({ tracks, playerState }: TrackQueueProps) {
-  const currentUri = playerState?.track_window.current_track.uri;
+export function TrackQueue({ tracks, sessionIndex, onPlayTrack, playbackPending }: TrackQueueProps) {
+  const mapping = useMemo(() => buildSessionQueueMapping(tracks), [tracks]);
+
+  // NOW row is the raw index of the current playable position. NEXT row is
+  // the raw index of (sessionIndex + 1). Both come from the canonical
+  // mapping so the visible labels always agree with what Spotify will
+  // actually play next from the sanitized queue.
+  //
+  // When sessionIndex is null (no playback yet), we default NOW to the
+  // first playable row so the queue still has a sensible head. NEXT is
+  // simply the next playable row after NOW.
+  const nowPlayableIndex = typeof sessionIndex === 'number' ? sessionIndex : 0;
+  const nowRawIndex = playableToRawIndex(mapping, nowPlayableIndex);
+  const nextRawIndex = playableToRawIndex(mapping, nowPlayableIndex + 1);
 
   return (
     <div className="mb-6">
       <p className="text-[9px] font-bold tracking-[0.2em] uppercase text-mc-lo mb-4">Track Queue</p>
       <div className="space-y-3">
         {tracks.map((track, i) => {
-          const isNow = currentUri ? track.uri === currentUri : i === 0;
-          const label = isNow ? 'NOW' : i === 1 ? 'NEXT' : `CUE ${i + 1}`;
-          const opacity = isNow ? '' : i === 1 ? 'opacity-65' : 'opacity-40';
+          const isNow = i === nowRawIndex;
+          const isNext = !isNow && i === nextRawIndex;
+          const label = isNow ? 'NOW' : isNext ? 'NEXT' : `CUE ${i + 1}`;
+          const opacity = isNow ? '' : isNext ? 'opacity-65' : 'opacity-40';
+          const playable =
+            typeof onPlayTrack === 'function' && isValidSpotifyTrackUri(track.uri ?? '');
 
-          return (
-            <div key={i} className={cn('flex items-start gap-4', opacity)}>
+          const content = (
+            <div className={cn('flex items-start gap-4 w-full text-left', opacity)}>
               <span
                 className={cn(
                   'text-[9px] font-bold tracking-[0.15em] w-12 shrink-0 pt-0.5',
@@ -78,10 +110,47 @@ export function TrackQueue({ tracks, playerState }: TrackQueueProps) {
                   </p>
                 )}
               </div>
+              {playable && (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'shrink-0 text-[14px] leading-none pt-1 transition-opacity',
+                    isNow ? 'text-mc-lav opacity-100' : 'text-mc-mid opacity-0 group-hover:opacity-100',
+                  )}
+                >
+                  ▶
+                </span>
+              )}
+            </div>
+          );
+
+          if (playable) {
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onPlayTrack!(i)}
+                disabled={playbackPending}
+                aria-label={`Play track ${i + 1}: ${track.title} by ${track.artist}`}
+                className="group w-full text-left rounded px-1 -mx-1 py-0.5 hover:bg-mc-elevated/40 focus:outline-none focus:ring-1 focus:ring-mc-lav transition-colors disabled:cursor-progress"
+              >
+                {content}
+              </button>
+            );
+          }
+
+          return (
+            <div key={i}>
+              {content}
             </div>
           );
         })}
       </div>
+      {onPlayTrack && (
+        <p className="mt-3 text-[9px] font-mono text-mc-dim tracking-[0.12em]">
+          Click any track to play from there.
+        </p>
+      )}
     </div>
   );
 }

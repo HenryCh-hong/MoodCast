@@ -196,9 +196,30 @@ RULES FOR session_update:
 - Never claim to know exactly what the user feels — use hedged language${tasteSection}`;
 }
 
-function buildDialDirective(dial: DiscoveryDial): string {
+type UserMaturity = 'new' | 'learning' | 'established';
+
+function buildDialDirective(
+  dial: DiscoveryDial,
+  maturity: UserMaturity = 'established',
+): string {
+  // For brand-new users on familiar/balanced dials, lean toward a 70/30
+  // taste-safe / discovery split. "Taste-safe" means familiar_anchor +
+  // same_artist_fresh — anchored in known artists but explicitly NOT a
+  // top-tracks replay. Discover dial is unaffected: if the user opted in
+  // to adventurous, give them adventurous regardless of maturity.
+  const isNew = maturity === 'new';
+
   switch (dial) {
     case 'familiar':
+      if (isNew) {
+        return [
+          '[Discovery dial: familiar · maturity: new — taste-safe 70/30]',
+          'New user with limited history. Lean ~70% taste-safe (familiar_anchor + same_artist_fresh)',
+          "and ~30% lighter discovery (adjacent_artist + contextual_discovery). Anchored, not adventurous.",
+          'Suggested mix: ~45% familiar_anchor, ~25% same_artist_fresh, ~20% adjacent_artist, ~10% contextual_discovery.',
+          'Do NOT replay top tracks — taste-safe means familiar artists with fresh tracks, not a saved playlist.',
+        ].join('\n');
+      }
       return [
         '[Discovery dial: familiar]',
         'User wants warmth and recognition, but this is still an AI radio show.',
@@ -213,6 +234,15 @@ function buildDialDirective(dial: DiscoveryDial): string {
       ].join('\n');
     case 'balanced':
     default:
+      if (isNew) {
+        return [
+          '[Discovery dial: balanced · maturity: new — taste-safe 70/30]',
+          'New user with limited history. Lean ~70% taste-safe (familiar_anchor + same_artist_fresh)',
+          'and ~30% discovery (adjacent_artist + contextual_discovery). The user must like this first session.',
+          'Suggested mix: ~35% familiar_anchor, ~35% same_artist_fresh, ~20% adjacent_artist, ~10% contextual_discovery.',
+          'Even on balanced, do NOT replay top tracks — taste-safe means anchored in known artists with fresh picks.',
+        ].join('\n');
+      }
       return [
         '[Discovery dial: balanced]',
         'Distribute roughly evenly across familiar_anchor / same_artist_fresh / adjacent_artist',
@@ -226,7 +256,7 @@ export function buildUserPrompt(
   momentContext?: MomentContext,
   selectedTags?: SelectedTagSet,
   discoveryDial?: DiscoveryDial,
-  options?: { extraInstruction?: string }
+  options?: { extraInstruction?: string; userMaturity?: UserMaturity }
 ): string {
   const parts: string[] = [
     `Mood: ${form.mood || 'not specified — infer from activity and direction'}`,
@@ -247,7 +277,7 @@ export function buildUserPrompt(
     tagsBlock = '\n\n' + buildSelectedTagsBlock(selectedTags);
   }
   const dial = discoveryDial ?? momentContext?.discoveryRecommendation ?? 'balanced';
-  const dialBlock = '\n\n' + buildDialDirective(dial);
+  const dialBlock = '\n\n' + buildDialDirective(dial, options?.userMaturity);
   const extra = options?.extraInstruction ? `\n\n${options.extraInstruction}` : '';
 
   return `Generate a Moodcast session for:\n${parts.join(

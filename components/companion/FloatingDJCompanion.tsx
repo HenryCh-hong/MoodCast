@@ -7,6 +7,11 @@ import { useDraggableCompanion } from '@/lib/hooks/useDraggableCompanion';
 import { useTrackTransition } from '@/lib/hooks/useTrackTransition';
 import { useMoocVoice } from '@/lib/hooks/useMoocVoice';
 import { updateSession } from '@/lib/storage/localSessions';
+import { sanitizeSpotifyTrackUris } from '@/lib/spotify/uris';
+import {
+  buildSessionQueueMapping,
+  playableToRawIndex,
+} from '@/lib/session/queueMapping';
 import { SpeakingIndicator } from '@/components/companion/SpeakingIndicator';
 import { MoocSettingsPanel } from '@/components/companion/MoocSettingsPanel';
 import type { AskDJResponseRetune, MoodcastSession } from '@/lib/types/moodcast';
@@ -32,7 +37,13 @@ type ControlAction = 'pause' | 'resume' | 'next' | 'previous';
 
 async function sendControl(
   action: ControlAction,
-  opts?: { uris?: string[]; currentUri?: string; deviceId?: string }
+  opts?: {
+    uris?: string[];
+    currentUri?: string;
+    currentIndex?: number;
+    deviceId?: string;
+    sessionId?: string;
+  }
 ): Promise<string | null> {
   try {
     const res = await fetch('/api/playback/control', {
@@ -59,6 +70,7 @@ export function FloatingDJCompanion() {
     deviceId,
     djCue, setDjCue,
     isMoocSpeaking,
+    sessionIndex, setSessionIndex,
   } = useMoodcast();
   const { ask, loading, response, pendingRetune, clearResponse, clearPendingRetune } = useAskDJ(currentSession);
   const { pos, onHeaderMouseDown } = useDraggableCompanion();
@@ -72,9 +84,21 @@ export function FloatingDJCompanion() {
   // Correct: isPlaying only true when there's a playerState and it's not paused
   const isPlaying = playerState ? !playerState.paused : false;
   const track = playerState?.track_window?.current_track;
-  const trackIndex = currentSession && track
-    ? currentSession.tracks.findIndex((t) => t.uri === track.uri) + 1
-    : 0;
+  // Track index display uses the canonical mapping so duplicate URIs don't
+  // cause findIndex to land on the wrong row (the previous bug). When we
+  // have a sessionIndex, prefer it; otherwise fall back to a first-match
+  // lookup so an unrelated Spotify track still shows something sensible.
+  const queueMapping = currentSession
+    ? buildSessionQueueMapping(currentSession.tracks)
+    : null;
+  const trackIndex = (() => {
+    if (!currentSession || !track) return 0;
+    if (typeof sessionIndex === 'number' && queueMapping) {
+      const raw = playableToRawIndex(queueMapping, sessionIndex);
+      if (raw !== null) return raw + 1;
+    }
+    return currentSession.tracks.findIndex((t) => t.uri === track.uri) + 1;
+  })();
   const trackTotal = currentSession?.tracks.length ?? 0;
   const albumArt = track?.album?.images?.[0]?.url;
 
@@ -95,21 +119,47 @@ export function FloatingDJCompanion() {
     setControlPending(true);
     setControlError(null);
 
-    let opts: { uris?: string[]; currentUri?: string; deviceId?: string } | undefined;
-    if ((action === 'next' || action === 'previous') && currentSession && track && deviceId) {
+    let opts:
+      | {
+          uris?: string[];
+          currentUri?: string;
+          currentIndex?: number;
+          deviceId?: string;
+          sessionId?: string;
+        }
+      | undefined;
+    if ((action === 'next' || action === 'previous') && currentSession && deviceId) {
+      // Use the SANITIZED playable list — the same indexing the server uses
+      // and the same the reconciliation effect in MoodcastContext maintains.
+      // Sending raw uris (with empty strings) caused the
+      // "Invalid track uri: \"\"" 400 from Spotify.
+      const playable = sanitizeSpotifyTrackUris(
+        currentSession.tracks.map((t) => t.uri ?? ''),
+      );
+      const sessionId = (currentSession as { id?: string }).id;
       opts = {
-        uris: currentSession.tracks
-          .map((t) => t.uri ?? '')
-          .filter((u) => u.startsWith('spotify:track:')),
-        currentUri: track.uri ?? '',
+        uris: playable,
+        currentUri: track?.uri ?? undefined,
+        currentIndex: sessionIndex ?? undefined,
         deviceId,
+        sessionId,
       };
+
+      // Optimistically move the local index (in playable terms) so a
+      // follow-up click computes the right target even if the player state
+      // hasn't echoed back yet.
+      if (typeof sessionIndex === 'number') {
+        const target = action === 'next' ? sessionIndex + 1 : sessionIndex - 1;
+        if (target >= 0 && target < playable.length) {
+          setSessionIndex(target);
+        }
+      }
     }
 
     const err = await sendControl(action, opts);
     if (err) setControlError(err);
     setControlPending(false);
-  }, [controlPending, currentSession, track, deviceId]);
+  }, [controlPending, currentSession, track, deviceId, sessionIndex, setSessionIndex]);
 
   const applyRetune = useCallback(async (retune: AskDJResponseRetune) => {
     if (!currentSession) return;
@@ -126,18 +176,25 @@ export function FloatingDJCompanion() {
     clearPendingRetune();
 
     if (retune.playbackRecommendation === 'restart' && deviceId) {
-      const validUris = retune.updatedTracks
-        .map((t) => t.uri ?? '')
-        .filter((u) => u.startsWith('spotify:track:'));
+      const validUris = sanitizeSpotifyTrackUris(
+        retune.updatedTracks.map((t) => t.uri ?? ''),
+      );
+      const sessionIdForBody = (currentSession as { id?: string }).id;
       if (validUris.length > 0) {
         await fetch('/api/playback/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deviceId, uris: validUris }),
+          body: JSON.stringify({
+            deviceId,
+            uris: validUris,
+            startIndex: 0,
+            sessionId: sessionIdForBody,
+          }),
         }).catch(() => {});
+        setSessionIndex(0);
       }
     }
-  }, [currentSession, setCurrentSession, deviceId, clearPendingRetune]);
+  }, [currentSession, setCurrentSession, deviceId, clearPendingRetune, setSessionIndex]);
 
   const submitAsk = useCallback(() => {
     if (inputValue.trim()) { ask(inputValue); setInputValue(''); }

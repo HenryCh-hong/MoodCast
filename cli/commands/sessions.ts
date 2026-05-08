@@ -10,6 +10,7 @@ import chalk from 'chalk';
 import readline from 'readline';
 import { getValidToken } from '../auth.js';
 import { startSessionPlayback } from '../utils/playback.js';
+import { authRecoveryHint, isShellMode } from '../utils/shellContext.js';
 import { runDashboard } from '../dashboard.js';
 import { writeActiveSession } from '../../lib/sessions/activeSession.js';
 import { resetPollCache } from '../utils/activeSessionPoll.js';
@@ -65,7 +66,9 @@ export async function listCmd(opts: { limit?: number } = {}): Promise<void> {
   if (entries.length === 0) {
     panel('Sessions Library', [panelLine('empty', 'no saved sessions yet', 'off')]);
     console.log('');
-    console.log(`  ${chalk.dim('generate one with')} ${chalk.bold('npm run moodcast start')}`);
+    console.log(
+      `  ${chalk.dim('generate one with')} ${chalk.bold(isShellMode() ? 'start' : 'npm run moodcast --silent -- start')}`,
+    );
     console.log('');
     return;
   }
@@ -84,9 +87,11 @@ export async function listCmd(opts: { limit?: number } = {}): Promise<void> {
   });
   panel('Sessions Library', lines);
   console.log('');
+  const showHint = isShellMode() ? 'sessions show <id>' : 'npm run moodcast --silent -- sessions show <id>';
+  const playHint = isShellMode() ? 'sessions play <id>' : 'npm run moodcast --silent -- sessions play <id>';
   console.log(
-    `  ${chalk.dim('show:')} ${chalk.bold('npm run moodcast sessions show <id>')}` +
-      `   ${chalk.dim('play:')} ${chalk.bold('npm run moodcast sessions play <id>')}`,
+    `  ${chalk.dim('show:')} ${chalk.bold(showHint)}` +
+      `   ${chalk.dim('play:')} ${chalk.bold(playHint)}`,
   );
   console.log('');
 }
@@ -142,12 +147,12 @@ function renderSessionDetail(rec: StoredSessionRecord): void {
 export async function showCmd(idOrPrefix: string | undefined): Promise<void> {
   header();
   if (!idOrPrefix) {
-    error('Usage: npm run moodcast sessions show <id>');
+    error(isShellMode() ? 'Usage: sessions show <id>' : 'Usage: npm run moodcast --silent -- sessions show <id>');
     return;
   }
   const entry = resolveSessionId(idOrPrefix);
   if (!entry) {
-    error(`No session matching "${idOrPrefix}". Try ${chalk.bold('npm run moodcast sessions list')}.`);
+    error(`No session matching "${idOrPrefix}". Try ${chalk.bold(isShellMode() ? 'sessions list' : 'npm run moodcast --silent -- sessions list')}.`);
     return;
   }
   const rec = getSession(entry.id);
@@ -164,7 +169,7 @@ async function playRecord(rec: StoredSessionRecord, opts: { fromResume?: boolean
   const token = await getValidToken();
   if (!token) {
     error('Spotify is not connected.');
-    recovery([chalk.bold('npm run moodcast auth') + ' to connect Spotify, then re-run']);
+    recovery([authRecoveryHint(), 'then re-run']);
     return;
   }
 
@@ -182,8 +187,8 @@ async function playRecord(rec: StoredSessionRecord, opts: { fromResume?: boolean
     .filter((u) => u.startsWith('spotify:track:'));
 
   const retryHint = opts.fromResume
-    ? 'npm run moodcast resume'
-    : `npm run moodcast sessions play ${rec.id}`;
+    ? 'resume'
+    : `sessions play ${rec.id}`;
   const result = await startSessionPlayback(token, uris, { retryHint });
   if (!result.ok) return;
 
@@ -200,12 +205,12 @@ async function playRecord(rec: StoredSessionRecord, opts: { fromResume?: boolean
 export async function playCmd(idOrPrefix: string | undefined): Promise<void> {
   header();
   if (!idOrPrefix) {
-    error('Usage: npm run moodcast sessions play <id>');
+    error(isShellMode() ? 'Usage: sessions play <id>' : 'Usage: npm run moodcast --silent -- sessions play <id>');
     return;
   }
   const entry = resolveSessionId(idOrPrefix);
   if (!entry) {
-    error(`No session matching "${idOrPrefix}". Try ${chalk.bold('npm run moodcast sessions list')}.`);
+    error(`No session matching "${idOrPrefix}". Try ${chalk.bold(isShellMode() ? 'sessions list' : 'npm run moodcast --silent -- sessions list')}.`);
     return;
   }
   const rec = getSession(entry.id);
@@ -233,8 +238,8 @@ export async function resumeCmd(): Promise<void> {
   if (!active) {
     error('No saved sessions to resume.');
     recovery([
-      'generate a new session: ' + chalk.bold('npm run moodcast start'),
-      'or list existing: ' + chalk.bold('npm run moodcast sessions list'),
+      'generate a new session: ' + chalk.bold(isShellMode() ? 'start' : 'npm run moodcast --silent -- start'),
+      'or list existing: ' + chalk.bold(isShellMode() ? 'sessions list' : 'npm run moodcast --silent -- sessions list'),
     ]);
     return;
   }
@@ -261,7 +266,7 @@ export async function resumeCmd(): Promise<void> {
 export async function deleteCmd(idOrPrefix: string | undefined): Promise<void> {
   header();
   if (!idOrPrefix) {
-    error('Usage: npm run moodcast sessions delete <id>');
+    error(isShellMode() ? 'Usage: sessions delete <id>' : 'Usage: npm run moodcast --silent -- sessions delete <id>');
     return;
   }
   const entry = resolveSessionId(idOrPrefix);
