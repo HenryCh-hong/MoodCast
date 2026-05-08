@@ -1,20 +1,29 @@
 # Moodcast
 
-An open-source AI radio agent. Describe the room, connect Spotify, and Moodcast builds a curated session from your own listening history with an AI DJ voice.
+An open-source AI radio agent for your current moment.
 
-**[Demo mode available — no API key needed]**
+Describe the room, connect Spotify, and Moodcast tunes a radio-style session from your listening taste, time of day, weather, location, and calendar rhythm — with MooC, an AI DJ companion.
+
+**Demo mode available — no API key needed.**
 
 ---
 
 ## What it does
 
-- You describe the mood: *"Late night coding, keep it quiet"* or *"Sunday morning, slow and present"*
-- Moodcast reads your Spotify taste (top artists, top tracks, recent plays)
-- AI selects tracks from your history and arranges them into a session with emotional arc
-- MooC (the AI DJ) opens with a monologue, narrates transitions, and closes the session
-- Spotify Premium: full playback via Web Playback SDK
-- Without Premium: real AI-generated track list, no audio
-- No Spotify / no API key: demo mode with 5 prewritten sessions
+- Describe the mood: *"Late night coding, keep it quiet"* or *"Sunday morning, slow and present"*
+- Auto Tune from your current moment: time, weather, location, Apple Calendar, Spotify taste, and recent listening patterns
+- Manual Tune with mood/activity/texture/signal/discovery tags
+- MooC builds an AI-curated radio session with:
+  - familiar anchors
+  - same-artist fresh tracks
+  - adjacent artists
+  - contextual discoveries
+- MooC writes opening monologues, transition cues, and closing notes
+- Optional browser TTS lets MooC speak transition cues
+- Purple on-air ambient glow reacts to playing / paused / MooC speaking states
+- Spotify Premium users get full playback through the Spotify Web Playback SDK
+- Free Spotify users still get AI-generated sessions and track lists, but not in-browser playback
+- No Spotify / no API key: demo mode with prewritten sessions
 
 ---
 
@@ -26,90 +35,292 @@ cd moodcast
 npm install
 
 cp .env.example .env.local
-# Fill in an AI key and Spotify credentials (see Setup below)
+# Fill in an AI key and Spotify credentials if you want the full experience
 
-node node_modules/next/dist/bin/next dev
+npm run dev -- -p 3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open:
 
-**To try without any setup:** go to the demo session link on the landing page — no API key needed.
+```text
+http://127.0.0.1:3001
+```
+
+The default Next.js dev port is `http://localhost:3000`; the current Moodcast dev/test flow uses `127.0.0.1:3001`.
+
+To try without setup, use the demo session link on the landing page.
 
 ---
 
-## Setup
+## Terminal mode
 
-### 1. AI provider (required for AI generation and MooC chat)
+Moodcast also ships with a terminal-native radio console.
 
-Moodcast supports two providers. Add **one** to `.env.local`:
+From the project directory:
 
-| Provider | Env var | Full experience |
-|---|---|---|
-| Google Gemini | `GOOGLE_API_KEY=...` | Session generation + MooC chat |
-| Anthropic Claude | `ANTHROPIC_API_KEY=sk-ant-...` | Session generation + MooC chat |
+```bash
+npm run moodcast --silent
+```
 
-If both are set, `GOOGLE_API_KEY` takes priority (override with `AI_PROVIDER=anthropic`).
+Or set up a shortcut:
 
-**Google Gemini** (recommended — free tier available):
-1. Get a key at [aistudio.google.com](https://aistudio.google.com)
-2. Add to `.env.local`: `GOOGLE_API_KEY=AIza...`
+```bash
+alias moodcast='npm --prefix ~/Desktop/MoodCast run --silent moodcast --'
+```
 
-**Anthropic Claude** (alternative):
-1. Create an account at [console.anthropic.com](https://console.anthropic.com)
-2. Generate an API key
-3. Add to `.env.local`: `ANTHROPIC_API_KEY=sk-ant-...`
+Then run:
 
-### 2. Spotify app (required for Spotify features)
+```bash
+moodcast
+```
+
+Inside the Moodcast shell:
+
+```text
+moodcast> status
+moodcast> start --auto
+moodcast> start --manual
+moodcast> resume
+moodcast> sessions
+moodcast> next
+moodcast> pause
+moodcast> quit
+```
+
+`moodcast sessions` opens an interactive session picker. Use ↑↓ to select a saved session and Enter to play it.
+
+---
+
+## Auto Tune vs Manual Tune
+
+### Auto Tune
+
+Moodcast reads the current signal and tunes automatically:
+
+- local time
+- weather
+- location
+- Apple Calendar rhythm
+- Spotify taste
+- recent listening patterns
+- discovery preference
+
+```bash
+moodcast start --auto
+```
+
+### Manual Tune
+
+Choose the signal yourself:
+
+- mood
+- activity
+- texture
+- moment signal
+- familiarity / discovery level
+
+```bash
+moodcast start --manual
+```
+
+---
+
+## Moment Context
+
+Moodcast can use privacy-safe context to shape the session.
+
+| Context         | Provider                         | Notes                                  |
+| --------------- | -------------------------------- | -------------------------------------- |
+| Time / timezone | local system                     | always available                       |
+| Weather         | Open-Meteo                       | no API key required                    |
+| Location        | manual city / coarse location    | raw coordinates are not sent to the AI |
+| Calendar        | Apple Calendar via iCloud CalDAV | summarized locally                     |
+| Spotify taste   | Spotify Web API                  | top artists, top tracks, recent plays  |
+
+Calendar privacy rule:
+
+Moodcast does **not** send raw event titles, attendees, notes, descriptions, or exact locations to the AI. It only uses a summary such as:
+
+```text
+busy afternoon
+meeting soon
+open evening
+suggested shorter session
+```
+
+---
+
+## Apple Calendar setup
+
+Moodcast supports Apple Calendar through iCloud CalDAV.
+
+You need an Apple app-specific password:
+
+1. Go to [account.apple.com](https://account.apple.com)
+2. Sign in
+3. Go to **Sign-In and Security**
+4. Open **App-Specific Passwords**
+5. Generate one named `Moodcast`
+6. Connect from the CLI:
+
+```bash
+moodcast calendar connect
+```
+
+Credentials are stored locally in:
+
+```text
+~/.moodcast/apple-calendar.json
+```
+
+with `0600` file permissions.
+
+---
+
+## Spotify setup
 
 1. Go to [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard)
-2. Create a new app (any name)
-3. In app settings, add this Redirect URI:
-   ```
-   http://localhost:3000/api/auth/spotify/callback
-   ```
-4. Copy **Client ID** and **Client Secret** to `.env.local`:
-   ```
-   SPOTIFY_CLIENT_ID=your_client_id
-   SPOTIFY_CLIENT_SECRET=your_client_secret
-   SPOTIFY_REDIRECT_URI=http://localhost:3000/api/auth/spotify/callback
-   ```
-5. In the app, click **Connect Spotify** in the navbar
+2. Create a new app
+3. Add this Redirect URI:
 
-### Playback note
+```text
+http://127.0.0.1:3001/api/auth/spotify/callback
+```
 
-Spotify Web Playback SDK requires a **Premium account**. Free accounts see the AI-generated track list but cannot play audio through Moodcast.
+4. Add credentials to `.env.local`:
+
+```env
+SPOTIFY_CLIENT_ID=your_client_id
+SPOTIFY_CLIENT_SECRET=your_client_secret
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:3001/api/auth/spotify/callback
+```
+
+5. In Moodcast, click **Connect Spotify**
+
+Spotify Web Playback SDK requires a **Premium account** for in-browser playback.
+
+---
+
+## AI provider setup
+
+Moodcast supports Gemini and Anthropic. Add one provider key to `.env.local`.
+
+| Provider         | Env var                        | Notes    |
+| ---------------- | ------------------------------ | -------- |
+| Google Gemini    | `GOOGLE_API_KEY=...`           | default  |
+| Anthropic Claude | `ANTHROPIC_API_KEY=sk-ant-...` | optional |
+
+If both are set, Gemini is used by default unless you set:
+
+```env
+AI_PROVIDER=anthropic
+```
+
+Gemini setup:
+
+1. Get a key from [aistudio.google.com](https://aistudio.google.com)
+2. Add:
+
+```env
+GOOGLE_API_KEY=...
+```
+
+Anthropic setup:
+
+1. Get a key from [console.anthropic.com](https://console.anthropic.com)
+2. Add:
+
+```env
+ANTHROPIC_API_KEY=...
+```
+
+---
+
+## Saved sessions
+
+Moodcast keeps a shared web/CLI session library at:
+
+```text
+~/.moodcast/sessions/
+```
+
+This powers:
+
+- the web `/saved` page
+- `moodcast sessions`
+- `moodcast resume`
+- `moodcast sessions play <id>`
+
+The current active session is stored at:
+
+```text
+~/.moodcast/active-session.json
+```
+
+For safe testing, you can sandbox local Moodcast data:
+
+```bash
+MOODCAST_HOME=$(mktemp -d) npm run moodcast --silent -- sessions list
+```
+
+---
+
+## Playlist save limitation
+
+Moodcast can create Spotify playlist shells.
+
+In Spotify Development Mode, Spotify may reject automatic track insertion into playlists unless your app has Spotify Extended Quota approval. When that happens, Moodcast falls back to:
+
+- creating the playlist shell
+- showing an open playlist link
+- providing a copyable ordered track list
+
+See:
+
+```text
+docs/spotify-quota.md
+```
 
 ---
 
 ## Fallback behavior
 
-| State | What you get |
-|---|---|
-| No API key, no Spotify | Demo mode — 5 prewritten sessions |
-| API key, no Spotify | AI generates session with track names, no playback |
-| Spotify connected, free account | AI uses your taste data, shows track list, no playback |
-| Spotify Premium | Full experience — real playback, album art, progress bar |
-
-If Moodcast reaches the AI API quota, update `GOOGLE_API_KEY` / `ANTHROPIC_API_KEY` in `.env.local` or wait for the provider quota to reset. See [docs/ai-quota.md](docs/ai-quota.md) for detection logic and the structured `AI_QUOTA_EXCEEDED` API response.
+| State                           | What you get                                          |
+| ------------------------------- | ----------------------------------------------------- |
+| No API key, no Spotify          | Demo mode                                             |
+| API key, no Spotify             | AI-generated session text and track list              |
+| Spotify connected, free account | Taste-aware generation, no Web Playback SDK audio     |
+| Spotify Premium                 | Full playback, album art, progress, session dashboard |
+| AI quota exceeded               | Friendly `AI_QUOTA_EXCEEDED` error and retry guidance |
 
 ---
 
 ## Tech stack
 
-- **Next.js 16** (App Router)
+- **Next.js 16** App Router
 - **TypeScript** strict mode
 - **Tailwind CSS v4**
-- **@google/generative-ai** — Gemini 2.5 Flash (default provider)
-- **@anthropic-ai/sdk** — Claude Sonnet 4.6 with prompt caching (optional)
-- **Spotify Web API** — taste profile (top artists/tracks/recent)
-- **Spotify Web Playback SDK** — in-browser playback (Premium)
-- **localStorage** — session persistence (no database)
+- **Spotify Web API**
+- **Spotify Web Playback SDK**
+- **Google Gemini** via `@google/generative-ai`
+- **Anthropic Claude** via `@anthropic-ai/sdk`
+- **Open-Meteo** for weather and geocoding
+- **Apple Calendar / iCloud CalDAV** via `tsdav` and `ical.js`
+- **Web Speech API** for local MooC voice cues
+- **Local filesystem session library** under `~/.moodcast`
+- **localStorage** for browser preferences and UI state
 
 ---
 
 ## Self-hosting
 
-Each user must bring their own Spotify app credentials — Spotify does not allow credential redistribution. AI provider keys (`GOOGLE_API_KEY` / `ANTHROPIC_API_KEY`) are BYOK (bring your own key) and are never exposed to the browser.
+Moodcast is BYOK:
+
+- bring your own Spotify app credentials
+- bring your own AI provider key
+- optionally connect Apple Calendar with an app-specific password
+
+Secrets are stored locally and are not exposed to the browser.
 
 ---
 
