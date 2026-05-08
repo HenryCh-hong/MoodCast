@@ -86,7 +86,7 @@
   --mc-faded:    #b87050;
   --mc-hi:       #e8d4c4;
   --mc-mid:      #a88878;
-  --mc-lo:       #6a5040;
+  --mc-lo:       #9a7458;  /* bumped: #6a5040 was ~2.5:1 on elevated, now ~4.2:1 */
   --mc-dim:      #3a2820;
 }
 
@@ -103,8 +103,8 @@
   --mc-faded:    #3a8a3a;
   --mc-hi:       #a0e8a0;
   --mc-mid:      #60a060;
-  --mc-lo:       #2a4a2a;
-  --mc-dim:      #141e14;
+  --mc-lo:       #507050;  /* bumped: #2a4a2a was ~1.96:1 on elevated, now ~3.5:1 */
+  --mc-dim:      #1e2e1e;
 }
 
 html { background-color: var(--mc-bg); color: var(--mc-hi); }
@@ -123,3 +123,16 @@ body { font-family: var(--font-geist-mono), monospace; }
   50%       { transform: scaleY(0.4); }
 }
 .animate-waveform { animation: waveform 1s ease-in-out infinite; }
+
+/* Purple on-air ambient glow. AmbientStage drives intensity + period via
+   inline CSS variables; the keyframe oscillates the gradient's opacity. */
+@keyframes mc-ambient-pulse {
+  0%, 100% { opacity: var(--mc-ambient-min, 0.65); }
+  50%      { opacity: var(--mc-ambient-max, 1); }
+}
+.mc-ambient-pulse {
+  animation: mc-ambient-pulse var(--mc-ambient-period, 6s) ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mc-ambient-pulse { animation: none; opacity: var(--mc-ambient-min, 0.65); }
+}

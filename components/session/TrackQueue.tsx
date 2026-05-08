@@ -1,15 +1,5 @@
 import { cn } from '@/lib/utils';
-
-interface Track {
-  title: string;
-  artist: string;
-  moodTag?: string;
-  energy?: string;
-  whyItFits?: string;
-  transitionLine?: string;
-  uri?: string;
-  albumArt?: string;
-}
+import type { Track } from '@/lib/types/moodcast';
 
 interface TrackQueueProps {
   tracks: Track[];
@@ -19,6 +9,12 @@ interface TrackQueueProps {
     };
   } | null;
 }
+
+const FAMILIARITY_LABEL: Record<NonNullable<Track['familiarityLevel']>, string> = {
+  familiar: 'familiar',
+  fresh: 'fresh',
+  discovery: 'discovery',
+};
 
 export function TrackQueue({ tracks, playerState }: TrackQueueProps) {
   const currentUri = playerState?.track_window.current_track.uri;
@@ -34,25 +30,52 @@ export function TrackQueue({ tracks, playerState }: TrackQueueProps) {
 
           return (
             <div key={i} className={cn('flex items-start gap-4', opacity)}>
-              <span className={cn(
-                'text-[9px] font-bold tracking-[0.15em] w-12 shrink-0 pt-0.5',
-                isNow ? 'text-mc-lav' : 'text-mc-lo'
-              )}>
+              <span
+                className={cn(
+                  'text-[9px] font-bold tracking-[0.15em] w-12 shrink-0 pt-0.5',
+                  isNow ? 'text-mc-lav' : 'text-mc-lo',
+                )}
+              >
                 {label}
               </span>
               <div className="flex-1 min-w-0">
                 {track.transitionLine && i > 0 && (
-                  <p className={cn(
-                    'text-[10px] font-bold tracking-tight mb-1',
-                    isNow ? 'text-mc-lo' : 'text-mc-dim',
-                  )}>
+                  <p
+                    className={cn(
+                      'text-[10px] font-bold tracking-tight mb-1',
+                      isNow ? 'text-mc-lo' : 'text-mc-dim',
+                    )}
+                  >
                     ↳ {track.transitionLine}
                   </p>
                 )}
-                <p className="text-[13px] font-bold tracking-tight text-mc-hi truncate">{track.title}</p>
+                <p className="text-[13px] font-bold tracking-tight text-mc-hi truncate">
+                  {track.title}
+                </p>
                 <p className="text-[11px] font-bold tracking-tight text-mc-lo">{track.artist}</p>
-                {track.moodTag && (
-                  <span className="text-[9px] font-bold tracking-tight text-mc-dim">{track.moodTag}</span>
+                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                  {track.moodTag && (
+                    <span className="text-[9px] font-bold tracking-tight text-mc-dim">
+                      {track.moodTag}
+                    </span>
+                  )}
+                  {track.familiarityLevel && (
+                    <>
+                      <span className="text-[9px] text-mc-dim/40">·</span>
+                      <span className="text-[9px] font-bold tracking-[0.12em] uppercase text-mc-lav/80 border border-mc-border rounded px-1.5 py-0.5">
+                        {FAMILIARITY_LABEL[track.familiarityLevel]}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {track.whyThisSourceFits && (
+                  <p
+                    className={cn(
+                      'text-[10px] font-bold tracking-tight mt-1 italic text-mc-dim',
+                    )}
+                  >
+                    {track.whyThisSourceFits}
+                  </p>
                 )}
               </div>
             </div>

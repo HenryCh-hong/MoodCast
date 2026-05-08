@@ -5,6 +5,11 @@ import { useMoodcast, autoTheme, type ThemeName } from '@/lib/context/MoodcastCo
 import { useAskDJ } from '@/lib/hooks/useAskDJ';
 import { useDraggableCompanion } from '@/lib/hooks/useDraggableCompanion';
 import { useTrackTransition } from '@/lib/hooks/useTrackTransition';
+import { useMoocVoice } from '@/lib/hooks/useMoocVoice';
+import { updateSession } from '@/lib/storage/localSessions';
+import { SpeakingIndicator } from '@/components/companion/SpeakingIndicator';
+import { MoocSettingsPanel } from '@/components/companion/MoocSettingsPanel';
+import type { AskDJResponseRetune, MoodcastSession } from '@/lib/types/moodcast';
 
 const QUICK_ACTIONS = [
   { label: 'softer', q: 'Shift the energy down — what track fits next?' },
@@ -25,12 +30,15 @@ const THEMES: Array<{ key: ThemeName; glyph: string }> = [
 
 type ControlAction = 'pause' | 'resume' | 'next' | 'previous';
 
-async function sendControl(action: ControlAction): Promise<string | null> {
+async function sendControl(
+  action: ControlAction,
+  opts?: { uris?: string[]; currentUri?: string; deviceId?: string }
+): Promise<string | null> {
   try {
     const res = await fetch('/api/playback/control', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action, ...opts }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({} as Record<string, unknown>)) as { error?: string };
@@ -44,15 +52,19 @@ async function sendControl(action: ControlAction): Promise<string | null> {
 
 export function FloatingDJCompanion() {
   const {
-    currentSession, playerState, spotifyProfile,
+    currentSession, setCurrentSession,
+    playerState, spotifyProfile,
     companionOpen, setCompanionOpen,
     djStatus, theme, setTheme,
     deviceId,
     djCue, setDjCue,
+    isMoocSpeaking,
   } = useMoodcast();
-  const { ask, loading, response, clearResponse } = useAskDJ(currentSession);
+  const { ask, loading, response, pendingRetune, clearResponse, clearPendingRetune } = useAskDJ(currentSession);
   const { pos, onHeaderMouseDown } = useDraggableCompanion();
   useTrackTransition();
+  // Drives browser TTS when a cue arrives. Reads gating from preferences.
+  useMoocVoice();
   const [inputValue, setInputValue] = useState('');
   const [controlPending, setControlPending] = useState(false);
   const [controlError, setControlError] = useState<string | null>(null);
@@ -82,10 +94,50 @@ export function FloatingDJCompanion() {
     if (controlPending) return;
     setControlPending(true);
     setControlError(null);
-    const err = await sendControl(action);
+
+    let opts: { uris?: string[]; currentUri?: string; deviceId?: string } | undefined;
+    if ((action === 'next' || action === 'previous') && currentSession && track && deviceId) {
+      opts = {
+        uris: currentSession.tracks
+          .map((t) => t.uri ?? '')
+          .filter((u) => u.startsWith('spotify:track:')),
+        currentUri: track.uri ?? '',
+        deviceId,
+      };
+    }
+
+    const err = await sendControl(action, opts);
     if (err) setControlError(err);
     setControlPending(false);
-  }, [controlPending]);
+  }, [controlPending, currentSession, track, deviceId]);
+
+  const applyRetune = useCallback(async (retune: AskDJResponseRetune) => {
+    if (!currentSession) return;
+
+    const updatedSession = { ...currentSession, tracks: retune.updatedTracks };
+    setCurrentSession(updatedSession as MoodcastSession);
+
+    const sessionId = (currentSession as { id?: string }).id;
+    const isDemo = (currentSession as { isDemo?: boolean }).isDemo;
+    if (sessionId && !isDemo) {
+      updateSession(sessionId, { tracks: retune.updatedTracks });
+    }
+
+    clearPendingRetune();
+
+    if (retune.playbackRecommendation === 'restart' && deviceId) {
+      const validUris = retune.updatedTracks
+        .map((t) => t.uri ?? '')
+        .filter((u) => u.startsWith('spotify:track:'));
+      if (validUris.length > 0) {
+        await fetch('/api/playback/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId, uris: validUris }),
+        }).catch(() => {});
+      }
+    }
+  }, [currentSession, setCurrentSession, deviceId, clearPendingRetune]);
 
   const submitAsk = useCallback(() => {
     if (inputValue.trim()) { ask(inputValue); setInputValue(''); }
@@ -276,13 +328,13 @@ export function FloatingDJCompanion() {
         )}
       </div>
 
-      {/* MOOC CUE card — appears when track changes, auto-clears after 10s */}
-      {djCue && (
+      {/* MOOC CUE card — appears when track changes, auto-clears after 10s.
+          Stays mounted while MooC is still speaking so the waveform indicator
+          syncs with the audible cue. */}
+      {(djCue || isMoocSpeaking) && (
         <div className="px-4 py-2.5 border-b border-mc-border bg-mc-surface">
           <div className="flex items-start justify-between gap-2 mb-1">
-            <span className="text-[8px] font-mono tracking-[0.18em] uppercase text-mc-lo">
-              MOOC CUE
-            </span>
+            <SpeakingIndicator active={isMoocSpeaking} />
             <button
               onClick={() => setDjCue(null)}
               className="text-mc-lo hover:text-mc-mid transition-colors text-[13px] leading-none -mt-0.5 flex-shrink-0"
@@ -291,7 +343,9 @@ export function FloatingDJCompanion() {
               ×
             </button>
           </div>
-          <p className="text-[11px] font-sans italic text-mc-mid leading-relaxed">{djCue}</p>
+          {djCue && (
+            <p className="text-[11px] font-sans italic text-mc-mid leading-relaxed">{djCue}</p>
+          )}
         </div>
       )}
 
@@ -322,6 +376,30 @@ export function FloatingDJCompanion() {
                 className="mt-1 text-[9px] text-mc-lo hover:text-mc-mid transition-colors"
               >
                 clear
+              </button>
+            </div>
+          )}
+          {pendingRetune && (
+            <div className="mb-2 p-2 border border-mc-lav/30 rounded bg-mc-surface">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[8px] font-mono tracking-[0.18em] uppercase text-mc-lo">Queue Update Ready</span>
+                <button
+                  onClick={clearPendingRetune}
+                  className="text-mc-lo hover:text-mc-mid transition-colors text-[13px] leading-none"
+                  aria-label="Dismiss retune"
+                >×</button>
+              </div>
+              {pendingRetune.changedTrackTitles?.length > 0 && (
+                <p className="text-[9px] text-mc-lo mb-2 leading-relaxed">
+                  Changed: {pendingRetune.changedTrackTitles.slice(0, 3).join(', ')}
+                  {pendingRetune.changedTrackTitles.length > 3 && ` +${pendingRetune.changedTrackTitles.length - 3} more`}
+                </p>
+              )}
+              <button
+                onClick={() => applyRetune(pendingRetune)}
+                className="text-[10px] font-bold text-mc-lav border border-mc-lav/40 rounded px-2.5 py-1 hover:bg-mc-lav hover:text-mc-bg transition-colors"
+              >
+                ▶ Apply Retune
               </button>
             </div>
           )}
@@ -372,6 +450,9 @@ export function FloatingDJCompanion() {
           </button>
         </div>
       </div>
+
+      {/* Voice + ambient settings tray (collapsed by default). */}
+      <MoocSettingsPanel />
     </div>
   );
 }

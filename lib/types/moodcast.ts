@@ -1,5 +1,14 @@
 // lib/types/moodcast.ts
 
+export type TrackSourceIntent =
+  | 'familiar_anchor'
+  | 'same_artist_fresh'
+  | 'adjacent_artist'
+  | 'contextual_discovery'
+  | 'user_seed';
+
+export type TrackFamiliarityLevel = 'familiar' | 'fresh' | 'discovery';
+
 export interface Track {
   title: string;
   artist: string;
@@ -7,8 +16,15 @@ export interface Track {
   energy: 'low' | 'medium' | 'high';
   whyItFits: string;
   transitionLine: string;
-  uri?: string;   // Spotify track URI, present when generated with Spotify
-  id?: string;    // Spotify track ID
+  uri?: string;        // Spotify track URI, present when generated with Spotify
+  id?: string;         // Spotify track ID
+  albumName?: string;  // populated after Spotify enrichment
+  albumArt?: string;
+  durationMs?: number;
+  // Phase 3 — Source-intent metadata, populated by AI generation.
+  sourceIntent?: TrackSourceIntent;
+  familiarityLevel?: TrackFamiliarityLevel;
+  whyThisSourceFits?: string;
 }
 
 export interface SessionArcPhase {
@@ -89,18 +105,28 @@ export interface BroadcastFormData {
 }
 
 export type GenerateSessionResponse =
-  | { session: MoodcastSession; isDemo: false }
-  | { session: MoodcastSession; isDemo: true; demoId: string };
+  | { session: MoodcastSession; sessionId: string; isDemo: false }
+  | { session: MoodcastSession; sessionId: string; isDemo: true; demoId: string };
 
 export interface AskDJRequest {
   session: MoodcastSession;
   question: string;
 }
 
-export interface AskDJResponse {
-  session: MoodcastSession;
+export interface AskDJResponseMessage {
+  type: 'message';
   djMessage: string;
 }
+
+export interface AskDJResponseRetune {
+  type: 'session_update';
+  djMessage: string;
+  updatedTracks: Track[];
+  changedTrackTitles: string[];
+  playbackRecommendation: 'continue' | 'restart' | 'ask_user';
+}
+
+export type AskDJStructuredResponse = AskDJResponseMessage | AskDJResponseRetune;
 
 export interface GenerateBroadcastRequest {
   form: BroadcastFormData;

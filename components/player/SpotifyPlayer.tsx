@@ -27,11 +27,12 @@ interface SpotifyPlayerState {
 
 interface SpotifyPlayerProps {
   onReady: (deviceId: string) => void;
+  onNotReady: () => void;
   onStateChange: (state: SpotifyPlayerState | null) => void;
   onError: (message: string) => void;
 }
 
-export function SpotifyPlayer({ onReady, onStateChange, onError }: SpotifyPlayerProps) {
+export function SpotifyPlayer({ onReady, onNotReady, onStateChange, onError }: SpotifyPlayerProps) {
   useEffect(() => {
     type SpotifySDKWindow = Window & { Spotify: { Player: new (options: {
       name: string;
@@ -45,18 +46,24 @@ export function SpotifyPlayer({ onReady, onStateChange, onError }: SpotifyPlayer
 
     let playerInstance: { disconnect: () => void } | null = null;
 
-    // Assign SDK ready callback before loading the script
-    (window as unknown as SpotifySDKWindow & { onSpotifyWebPlaybackSDKReady?: () => void }).onSpotifyWebPlaybackSDKReady = async () => {
-      const res = await fetch('/api/auth/spotify/token');
-      if (!res.ok) {
-        onError('Not authenticated with Spotify');
-        return;
-      }
-      const { token } = await res.json() as { token: string };
+    async function initPlayer() {
+      const sdkWindow = window as unknown as SpotifySDKWindow;
 
-      const player = new (window as unknown as SpotifySDKWindow).Spotify.Player({
+      const player = new sdkWindow.Spotify.Player({
         name: 'Moodcast',
-        getOAuthToken: (cb) => cb(token),
+        // Always fetch a fresh token — the SDK calls this on reconnect and token expiry.
+        // Capturing a single token at init causes 404s after ~1 hour when the token expires.
+        getOAuthToken: async (cb) => {
+          try {
+            const res = await fetch('/api/auth/spotify/token');
+            if (!res.ok) { onError('Not authenticated with Spotify'); return; }
+            const data = await res.json() as { token?: string };
+            if (!data.token) { onError('Not authenticated with Spotify'); return; }
+            cb(data.token);
+          } catch {
+            onError('Could not reach Spotify — check your connection and reload.');
+          }
+        },
         volume: 0.8,
       });
 
@@ -65,7 +72,10 @@ export function SpotifyPlayer({ onReady, onStateChange, onError }: SpotifyPlayer
         onReady(device_id);
       });
 
-      player.addListener('not_ready', () => onReady(''));
+      // Device went offline — clear stale device_id so UI doesn't allow transfer attempts
+      player.addListener('not_ready', () => {
+        onNotReady();
+      });
 
       player.addListener('player_state_changed', (state) => {
         onStateChange(state as SpotifyPlayerState | null);
@@ -76,28 +86,42 @@ export function SpotifyPlayer({ onReady, onStateChange, onError }: SpotifyPlayer
       });
       player.addListener('authentication_error', (e) => {
         onError((e as { message: string }).message);
+        // Auth failure invalidates the device — clear it so UI reflects the broken state
+        onNotReady();
       });
       player.addListener('account_error', () => {
         onError('Spotify Premium is required for playback');
       });
+      player.addListener('playback_error', (e) => {
+        onError((e as { message: string }).message ?? 'Spotify playback error');
+      });
 
       playerInstance = player;
-      await player.connect();
-    };
+      const connected = await player.connect();
+      if (!connected) {
+        onError('Spotify player failed to connect. Check your network or Spotify app.');
+      }
+    }
 
-    const script = document.createElement('script');
-    script.src = 'https://sdk.scdn.co/spotify-player.js';
-    script.async = true;
-    document.body.appendChild(script);
+    const sdkWindow = window as unknown as SpotifySDKWindow & { onSpotifyWebPlaybackSDKReady?: () => void };
+
+    // If the SDK script already ran (e.g. navigated back to this page), window.Spotify
+    // is already defined and onSpotifyWebPlaybackSDKReady won't fire again — call directly.
+    if (sdkWindow.Spotify) {
+      void initPlayer();
+    } else {
+      sdkWindow.onSpotifyWebPlaybackSDKReady = () => { void initPlayer(); };
+      const script = document.createElement('script');
+      script.src = 'https://sdk.scdn.co/spotify-player.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
 
     return () => {
       playerInstance?.disconnect();
       delete (window as unknown as { onSpotifyWebPlaybackSDKReady?: () => void }).onSpotifyWebPlaybackSDKReady;
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
     };
-  }, [onReady, onStateChange, onError]);
+  }, [onReady, onNotReady, onStateChange, onError]);
 
   return null; // renders nothing — purely behavioral
 }

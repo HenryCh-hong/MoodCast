@@ -1,5 +1,20 @@
 const BASE = 'https://api.spotify.com/v1';
 
+export class SpotifyAPIError extends Error {
+  status: number;
+  spotifyMessage: string | undefined;
+  spotifyReason: string | undefined;
+
+  constructor(status: number, body?: { error?: { message?: string; reason?: string } }) {
+    const detail = body?.error?.message ? `: ${body.error.message}` : '';
+    const reason = body?.error?.reason ? ` (reason: ${body.error.reason})` : '';
+    super(`Spotify API error: ${status}${detail}${reason}`);
+    this.status = status;
+    this.spotifyMessage = body?.error?.message;
+    this.spotifyReason = body?.error?.reason;
+  }
+}
+
 export async function spotifyFetch<T>(
   path: string,
   token: string,
@@ -14,15 +29,22 @@ export async function spotifyFetch<T>(
     body: options?.body,
   });
   if (!res.ok) {
-    let detail = '';
+    let errBody: { error?: { message?: string; reason?: string } } | undefined;
     try {
-      const errBody = await res.json() as { error?: { message?: string } };
-      detail = errBody?.error?.message ? `: ${errBody.error.message}` : '';
+      errBody = await res.json() as typeof errBody;
     } catch { /* ignore parse failure */ }
-    throw new Error(`Spotify API error: ${res.status}${detail}`);
+    throw new SpotifyAPIError(res.status, errBody);
   }
   if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  // Some Spotify endpoints (e.g. /me/player/pause, /me/player/next) return 200 with
+  // an empty or non-JSON body. Read as text first and only parse if it looks like JSON.
+  const text = await res.text();
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return undefined as T;
+  }
 }
 
 export async function spotifySearch(
@@ -63,22 +85,53 @@ export async function startPlayback(
   );
 }
 
+export async function pausePlayback(token: string, deviceId?: string): Promise<void> {
+  const q = deviceId ? `?device_id=${deviceId}` : '';
+  await spotifyFetch<void>(`/me/player/pause${q}`, token, { method: 'PUT' });
+}
+
+// Resume playback on the currently active device (no URIs = continue from current position).
+export async function resumePlayback(token: string, deviceId?: string): Promise<void> {
+  const q = deviceId ? `?device_id=${deviceId}` : '';
+  await spotifyFetch<void>(`/me/player/play${q}`, token, { method: 'PUT' });
+}
+
+export async function skipToNext(token: string, deviceId?: string): Promise<void> {
+  const q = deviceId ? `?device_id=${deviceId}` : '';
+  await spotifyFetch<void>(`/me/player/next${q}`, token, { method: 'POST' });
+}
+
+export async function skipToPrevious(token: string, deviceId?: string): Promise<void> {
+  const q = deviceId ? `?device_id=${deviceId}` : '';
+  await spotifyFetch<void>(`/me/player/previous${q}`, token, { method: 'POST' });
+}
+
+export interface SpotifyDevice {
+  id: string;
+  name: string;
+  type: string;
+  is_active: boolean;
+  is_restricted?: boolean;
+}
+
+export async function getDevices(token: string): Promise<SpotifyDevice[]> {
+  const data = await spotifyFetch<{ devices?: SpotifyDevice[] }>('/me/player/devices', token);
+  return data.devices ?? [];
+}
+
+// POST /me/playlists creates a playlist for the authenticated user.
+// /users/{userId}/playlists returns 403 in Spotify's current API policy.
 export async function createPlaylist(
   token: string,
-  userId: string,
   name: string,
   description: string
 ): Promise<{ id: string; external_urls: { spotify: string } }> {
   return spotifyFetch<{ id: string; external_urls: { spotify: string } }>(
-    `/users/${userId}/playlists`,
+    '/me/playlists',
     token,
     {
       method: 'POST',
-      body: JSON.stringify({
-        name,
-        description,
-        public: false,
-      }),
+      body: JSON.stringify({ name, description, public: false }),
     }
   );
 }

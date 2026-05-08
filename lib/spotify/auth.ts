@@ -7,7 +7,7 @@ function requireEnv(name: string): string {
   return val;
 }
 
-const SCOPES = [
+export const SCOPES_LIST = [
   'user-read-email',
   'user-read-private',
   'user-top-read',
@@ -17,7 +17,10 @@ const SCOPES = [
   'user-modify-playback-state',
   'playlist-modify-public',
   'playlist-modify-private',
-].join(' ');
+  'playlist-read-private',
+  'playlist-read-collaborative',
+];
+const SCOPES = SCOPES_LIST.join(' ');
 
 export function getSpotifyAuthUrl(state: string, codeChallenge: string): string {
   const params = new URLSearchParams({
@@ -28,6 +31,7 @@ export function getSpotifyAuthUrl(state: string, codeChallenge: string): string 
     scope: SCOPES,
     code_challenge_method: 'S256',
     code_challenge: codeChallenge,
+    show_dialog: 'true',
   });
   return `https://accounts.spotify.com/authorize?${params}`;
 }

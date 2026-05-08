@@ -1,51 +1,77 @@
-// app/api/ask-dj/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
-import type { AskDJRequest } from '@/lib/types/moodcast';
-
-const client = new Anthropic();
+import { getActiveProvider, generateText } from '@/lib/ai/provider';
+import { getValidAccessToken } from '@/lib/spotify/auth';
+import { buildTasteProfile } from '@/lib/spotify/taste';
+import { buildAskDJSystemPrompt } from '@/lib/ai/moodcastPrompt';
+import type { AskDJRequest, AskDJStructuredResponse, TasteProfile } from '@/lib/types/moodcast';
 
 export async function POST(req: NextRequest) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({
-      djMessage: "I can't answer questions in demo mode — connect your API key to chat with the DJ.",
+  if (!getActiveProvider()) {
+    return NextResponse.json<AskDJStructuredResponse>({
+      type: 'message',
+      djMessage: 'MooC chat needs GOOGLE_API_KEY or ANTHROPIC_API_KEY in .env.local.',
     });
   }
 
   const { session, question } = (await req.json()) as AskDJRequest;
 
   if (!question?.trim() || !session?.sessionTitle) {
-    return NextResponse.json({ djMessage: 'No question provided.' }, { status: 400 });
+    return NextResponse.json<AskDJStructuredResponse>(
+      { type: 'message', djMessage: 'No question provided.' },
+      { status: 400 }
+    );
   }
 
+  // Fetch taste profile for URI suggestions in retune responses
+  let tasteProfile: TasteProfile | undefined;
   try {
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 512,
-      system: [
-        {
-          type: 'text',
-          text: 'You are Moodcast DJ. Answer the user\'s question about their session in 1-3 sentences. Stay in character: calm, warm, specific. Never use the word "vibe".',
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
-      messages: [
-        {
-          role: 'user',
-          content: `Session context: "${session.sessionTitle}" — ${session.mood}, ${session.activity}.\n\nQuestion: ${question}`,
-        },
-      ],
+    const token = await getValidAccessToken();
+    if (token) tasteProfile = await buildTasteProfile(token);
+  } catch { /* no taste profile — continue without */ }
+
+  const userMessage = `Current session: ${JSON.stringify({
+    sessionTitle: session.sessionTitle,
+    mood: session.mood,
+    activity: session.activity,
+    energyArc: session.energyArc,
+    tracks: session.tracks,
+  })}\n\nUser question/request: ${question}`;
+
+  try {
+    const raw = await generateText({
+      systemPrompt: buildAskDJSystemPrompt(tasteProfile),
+      userMessage,
+      maxTokens: 4096,
     });
 
-    const text = message.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map((b) => b.text)
-      .join('');
+    // Strip possible markdown code fences the AI might wrap around the JSON
+    const cleaned = raw
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim();
 
-    return NextResponse.json({ djMessage: text });
+    let parsed: AskDJStructuredResponse;
+    try {
+      parsed = JSON.parse(cleaned) as AskDJStructuredResponse;
+    } catch {
+      // AI returned plain text — treat as informational message
+      parsed = { type: 'message', djMessage: raw.slice(0, 400) };
+    }
+
+    // Validate session_update: must have at least one track with a title
+    if (parsed.type === 'session_update') {
+      const tracks = parsed.updatedTracks;
+      if (!Array.isArray(tracks) || tracks.length === 0 || !tracks[0]?.title) {
+        parsed = { type: 'message', djMessage: parsed.djMessage };
+      }
+    }
+
+    return NextResponse.json(parsed);
   } catch (err) {
-    return NextResponse.json(
-      { djMessage: 'The DJ is momentarily off-air. Try again.' },
+    const detail = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json<AskDJStructuredResponse>(
+      { type: 'message', djMessage: `MooC is off-air right now — ${detail}` },
       { status: 500 }
     );
   }

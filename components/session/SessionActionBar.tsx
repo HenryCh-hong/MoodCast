@@ -24,6 +24,8 @@ export function SessionActionBar({
   );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [tracksSkipped, setTracksSkipped] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   function handleDelete() {
     deleteSession(sessionId);
@@ -49,27 +51,52 @@ export function SessionActionBar({
         }),
       });
       const data = await res.json() as {
+        ok?: boolean;
         playlistId?: string;
         playlistUrl?: string;
         error?: string;
       };
-      if (!res.ok || !data.playlistUrl) {
+
+      if (!res.ok && !data.playlistUrl) {
         setSaveError(data.error ?? 'Failed to save playlist');
         return;
       }
-      setPlaylistUrl(data.playlistUrl);
-      if (!isDemo) {
-        updateSession(sessionId, {
-          spotifyPlaylistId: data.playlistId,
-          spotifyPlaylistUrl: data.playlistUrl,
-        });
+
+      if (data.playlistUrl) {
+        setPlaylistUrl(data.playlistUrl);
+        if (!isDemo) {
+          updateSession(sessionId, {
+            spotifyPlaylistId: data.playlistId,
+            spotifyPlaylistUrl: data.playlistUrl,
+          });
+        }
+        if (data.ok === false) {
+          setTracksSkipped(true);
+        }
+        return;
       }
+
+      setSaveError(data.error ?? 'Failed to save playlist');
     } catch {
       setSaveError('Network error — could not save playlist');
     } finally {
       setSaving(false);
     }
   }, [session, sessionId, isDemo]);
+
+  const handleCopyTrackList = useCallback(() => {
+    const lines: string[] = [`Moodcast — ${session.sessionTitle}`, ''];
+    session.tracks.forEach((track, i) => {
+      const trackId = track.uri?.startsWith('spotify:track:')
+        ? track.uri.split(':')[2]
+        : null;
+      const spotifyUrl = trackId ? `https://open.spotify.com/track/${trackId}` : null;
+      lines.push(`${i + 1}. ${track.title} — ${track.artist}${spotifyUrl ? `\n   ${spotifyUrl}` : ''}`);
+    });
+    navigator.clipboard.writeText(lines.join('\n')).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [session]);
 
   const validTrackCount = session.tracks.filter(
     (t) => t.uri?.startsWith('spotify:track:')
@@ -105,11 +132,11 @@ export function SessionActionBar({
             }
             className="text-[#1DB954] hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {saving ? '···' : '♫ Save as Playlist'}
+            {saving ? '···' : '♫ Create Spotify Playlist'}
           </button>
         )}
 
-        {playlistUrl && (
+        {playlistUrl && !tracksSkipped && (
           <a
             href={playlistUrl}
             target="_blank"
@@ -146,14 +173,37 @@ export function SessionActionBar({
         </p>
       )}
 
-      {missingUriCount > 0 && playlistUrl && !isDemo && (
+      {missingUriCount > 0 && playlistUrl && !isDemo && !tracksSkipped && (
         <p className="text-[10px] font-mono text-mc-dim tracking-tight">
           {missingUriCount} track{missingUriCount > 1 ? 's' : ''} skipped (no Spotify URI). Playlist saved with {validTrackCount} track{validTrackCount !== 1 ? 's' : ''}.
         </p>
       )}
 
-      {saveError && (
+      {saveError && !tracksSkipped && (
         <p className="text-[10px] font-mono text-mc-onair tracking-tight">{saveError}</p>
+      )}
+
+      {tracksSkipped && playlistUrl && (
+        <div className="flex flex-col gap-2">
+          <p className="text-[10px] font-mono text-mc-dim tracking-tight">
+            Spotify created the playlist, but this developer app is not approved to add tracks automatically yet.{' '}
+            <a
+              href={playlistUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#1DB954] underline"
+            >
+              Open empty playlist ↗
+            </a>
+            {', '}or copy the track list below.
+          </p>
+          <button
+            onClick={handleCopyTrackList}
+            className="self-start text-[10px] font-mono font-bold text-mc-lo hover:text-mc-mid transition-colors tracking-tight"
+          >
+            {copied ? '✓ Copied!' : '⎘ Copy Track List'}
+          </button>
+        </div>
       )}
     </div>
   );

@@ -6,17 +6,28 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "moodcast": "tsx cli/index.ts"
+  },
+  "bin": {
+    "moodcast": "./cli/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
     "@google/generative-ai": "^0.24.1",
+    "chalk": "^5.6.2",
     "clsx": "^2.1.1",
+    "commander": "^14.0.3",
+    "dotenv": "^17.4.2",
+    "ical.js": "^2.2.1",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
+    "open": "^11.0.0",
+    "ora": "^9.4.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "tsdav": "^2.2.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -25,7 +36,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "playwright": "^1.59.1",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

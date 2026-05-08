@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { Navbar } from '@/components/layout/Navbar';
 import { MoodcastProvider } from '@/lib/context/MoodcastContext';
 import { FloatingDJCompanion } from '@/components/companion/FloatingDJCompanion';
+import { AmbientStage } from '@/components/companion/AmbientStage';
 import './globals.css';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
       <body className="min-h-screen bg-mc-bg text-mc-hi flex flex-col">
         <MoodcastProvider>
+          <AmbientStage />
           <Navbar />
           <main className="flex-1">{children}</main>
           <FloatingDJCompanion />

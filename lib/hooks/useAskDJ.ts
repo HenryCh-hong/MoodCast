@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { MoodcastSession } from '@/lib/types/moodcast';
+import type { MoodcastSession, AskDJStructuredResponse, AskDJResponseRetune } from '@/lib/types/moodcast';
 
 export function useAskDJ(session: MoodcastSession | null) {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<string | null>(null);
+  const [pendingRetune, setPendingRetune] = useState<AskDJResponseRetune | null>(null);
 
   const ask = useCallback(async (question: string) => {
     if (!question.trim() || !session) return;
     setLoading(true);
     setResponse(null);
+    setPendingRetune(null);
     try {
       const res = await fetch('/api/ask-dj', {
         method: 'POST',
@@ -21,8 +23,11 @@ export function useAskDJ(session: MoodcastSession | null) {
         setResponse('The DJ is off-air right now. Try again.');
         return;
       }
-      const data = await res.json() as { djMessage: string };
+      const data = await res.json() as AskDJStructuredResponse;
       setResponse(data.djMessage);
+      if (data.type === 'session_update') {
+        setPendingRetune(data);
+      }
     } catch {
       setResponse('Connection lost. Try again.');
     } finally {
@@ -30,7 +35,12 @@ export function useAskDJ(session: MoodcastSession | null) {
     }
   }, [session]);
 
-  const clearResponse = useCallback(() => setResponse(null), []);
+  const clearResponse = useCallback(() => {
+    setResponse(null);
+    setPendingRetune(null);
+  }, []);
 
-  return { ask, loading, response, clearResponse };
+  const clearPendingRetune = useCallback(() => setPendingRetune(null), []);
+
+  return { ask, loading, response, pendingRetune, clearResponse, clearPendingRetune };
 }

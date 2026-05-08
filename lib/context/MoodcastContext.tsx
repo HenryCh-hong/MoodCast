@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  createContext, useContext, useState, useEffect, useCallback,
+  createContext, useContext, useState, useEffect, useMemo, useCallback,
   type ReactNode,
 } from 'react';
 import type { MoodcastSession } from '@/lib/types/moodcast';
@@ -49,9 +49,11 @@ interface MoodcastCtx {
   companionOpen: boolean;
   setCompanionOpen: (v: boolean) => void;
   djStatus: DJStatus;
-  setDJStatus: (s: DJStatus) => void;
   djCue: string | null;
   setDjCue: (cue: string | null) => void;
+  /** True while DJ MOOC's TTS voice is actively speaking a cue. */
+  isMoocSpeaking: boolean;
+  setIsMoocSpeaking: (v: boolean) => void;
 }
 
 // ── Context ──────────────────────────────────────────────────────────────────
@@ -94,8 +96,17 @@ export function MoodcastProvider({ children }: { children: ReactNode }) {
   const [spotifyProfile, setSpotifyProfile] = useState<SpotifyProfile | null>(null);
   const [theme, setThemeState] = useState<ThemeName>(initTheme);
   const [companionOpen, setCompanionOpen] = useState(false);
-  const [djStatus, setDJStatus] = useState<DJStatus>('idle');
   const [djCue, setDjCue] = useState<string | null>(null);
+  const [isMoocSpeaking, setIsMoocSpeaking] = useState(false);
+
+  // djStatus is derived from session + playback. Keeping it as memoised
+  // derived state avoids the React 19 lint against synchronous setState
+  // inside an effect, and removes a redundant render cycle.
+  const djStatus: DJStatus = useMemo(() => {
+    if (!currentSession) return 'idle';
+    if (!playerState) return 'on-air';
+    return playerState.paused ? 'on-air' : 'listening';
+  }, [currentSession, playerState]);
 
   // Apply theme to <html> data-theme attribute
   useEffect(() => {
@@ -105,17 +116,13 @@ export function MoodcastProvider({ children }: { children: ReactNode }) {
   // Fetch Spotify profile once on mount
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((data: SpotifyProfile) => setSpotifyProfile(data))
+      .then((r) => {
+        if (!r.ok) return null;
+        return r.json() as Promise<SpotifyProfile>;
+      })
+      .then((data) => setSpotifyProfile(data ?? { connected: false }))
       .catch(() => setSpotifyProfile({ connected: false }));
   }, []);
-
-  // Update djStatus based on session + playerState
-  useEffect(() => {
-    if (!currentSession) { setDJStatus('idle'); return; }
-    if (!playerState) { setDJStatus('on-air'); return; }
-    setDJStatus(playerState.paused ? 'on-air' : 'listening');
-  }, [currentSession, playerState]);
 
   const setTheme = useCallback((t: ThemeName, manual = false) => {
     setThemeState(t);
@@ -134,8 +141,9 @@ export function MoodcastProvider({ children }: { children: ReactNode }) {
       spotifyProfile, setSpotifyProfile,
       theme, setTheme,
       companionOpen, setCompanionOpen,
-      djStatus, setDJStatus,
+      djStatus,
       djCue, setDjCue,
+      isMoocSpeaking, setIsMoocSpeaking,
     }}>
       {children}
     </MoodcastContext.Provider>

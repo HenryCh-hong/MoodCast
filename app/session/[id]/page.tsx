@@ -30,28 +30,70 @@ export default function SessionPage() {
   const [playerError, setPlayerError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load session
-    const demo = getDemoSession(id);
-    if (demo) {
-      setSession({ ...demo, isDemo: true });
-    } else {
+    // Resolution order:
+    //   1) demo registry          (built-in prewritten sessions)
+    //   2) browser localStorage   (legacy web saves)
+    //   3) shared session library (terminal- and web-generated, the source of truth)
+    let cancelled = false;
+    (async () => {
+      const demo = getDemoSession(id);
+      if (demo) {
+        if (!cancelled) setSession({ ...demo, isDemo: true });
+        if (!cancelled) setLoading(false);
+        return;
+      }
       const saved = getSession(id);
-      if (saved) setSession(saved);
-    }
-    setLoading(false);
+      if (saved) {
+        if (!cancelled) setSession(saved);
+        if (!cancelled) setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/sessions/library/${encodeURIComponent(id)}`, {
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const body = (await res.json()) as { session?: { id: string; session: MoodcastSession } };
+          if (body.session?.session && !cancelled) {
+            setSession({ ...body.session.session, id: body.session.id });
+          }
+        }
+      } catch {
+        // network/server unavailable — fall through to "not found" state
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   useEffect(() => {
-    if (session) setCurrentSession(session as MoodcastSession);
+    if (session) {
+      setCurrentSession(session as MoodcastSession);
+      // Sync to the cross-process active-session store so the CLI dashboard
+      // (and any future client) can pick up MooC cue lines + track order.
+      // Fire-and-forget; non-blocking on failure.
+      fetch('/api/sessions/active', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, source: 'web', session }),
+      }).catch(() => { /* silent — store is best-effort */ });
+    }
     return () => {
       setCurrentSession(null);
       setPlayerState(null);
       setDeviceId(null);
     };
-  }, [session, setCurrentSession]);
+  }, [session, id, setCurrentSession, setPlayerState, setDeviceId]);
 
   const handlePlayerReady = useCallback((dId: string) => {
     setDeviceId(dId || null);
+  }, [setDeviceId]);
+
+  const handlePlayerNotReady = useCallback(() => {
+    setDeviceId(null);
   }, [setDeviceId]);
 
   const handleStateChange = useCallback((state: PlayerState | null) => {
@@ -87,14 +129,21 @@ export default function SessionPage() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({} as Record<string, unknown>)) as { error?: string };
-        setPlayerError(body.error ?? `Playback failed (${res.status})`);
+        const raw = body.error ?? `Playback failed (${res.status})`;
+        if (raw.toLowerCase().includes('device not found') || raw.toLowerCase().includes('device_not_found')) {
+          // Stale device_id — clear it so the button hides and user knows to wait for reconnect
+          setDeviceId(null);
+          setPlayerError('Spotify device was not found. Reopen Spotify or reconnect the web player, then try again.');
+        } else {
+          setPlayerError(raw);
+        }
       }
     } catch {
       setPlayerError('Playback failed — check your network connection');
     } finally {
       setPlaybackPending(false);
     }
-  }, [deviceId, session]);
+  }, [deviceId, session, setDeviceId]);
 
   if (loading) {
     return (
@@ -128,6 +177,7 @@ export default function SessionPage() {
       {isPremiumWithPlayer && (
         <SpotifyPlayer
           onReady={handlePlayerReady}
+          onNotReady={handlePlayerNotReady}
           onStateChange={handleStateChange}
           onError={handlePlayerError}
         />

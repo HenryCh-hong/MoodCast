@@ -83,7 +83,7 @@ export function analyzeListeningPatterns(
   for (const s of last5) {
     const combined = `${s?.mood ?? ''} ${s?.activity ?? ''}`.toLowerCase();
     if (/tired|relax|calm|soft|quiet|sleep|mellow|gentle/.test(combined)) energyWords.low++;
-    else if (/focus|study|work|read|creat/.test(combined)) energyWords.medium++;
+    else if (/focus|study|\bwork\b|read|creat/.test(combined)) energyWords.medium++;
     else if (/energet|workout|pump|danc|run|motivat/.test(combined)) energyWords.high++;
   }
   const maxEnergy = Math.max(energyWords.low, energyWords.medium, energyWords.high);
