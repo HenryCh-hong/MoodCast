@@ -19,6 +19,13 @@ import {
   shortcutsLine,
 } from './display.js';
 import type { MoodcastSession, Track } from '../lib/types/moodcast.js';
+import {
+  applyFeedbackForTrack,
+  getVerdictForTrack,
+  type FeedbackAction,
+} from './feedback.js';
+import { pickTrack } from './trackPicker.js';
+import { playSessionTrackAt } from './utils/playSessionTrack.js';
 
 const POLL_MS = 1500;
 const RENDER_MS = 250;
@@ -207,18 +214,114 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
   }
 
   // ─── Keyboard ───────────────────────────────────────────────────────────
-  const stopKeyboard = startKeyboard((key: Key) => {
-    if (quitting) return;
-    if (key === 'q' || key === 'ctrl-c') {
-      quitting = true;
+  // The keyboard handler can be detached and re-attached around modal screens
+  // (e.g. the track picker). `stopKeyboardFn` always points at the current
+  // detacher; calling it twice is harmless because startKeyboard's stop is
+  // idempotent.
+  let stopKeyboardFn: () => void = () => {};
+  function attachKeyboard(): void {
+    stopKeyboardFn = startKeyboard((key: Key) => {
+      if (quitting) return;
+      if (key === 'q' || key === 'ctrl-c') {
+        quitting = true;
+        return;
+      }
+      if (key === 'space') void onSpace();
+      else if (key === 'n') void onSkip('next');
+      else if (key === 'p') void onSkip('previous');
+      else if (key === 'r') showToast('retune coming later');
+      else if (key === 't') void openTrackPicker();
+      else if (key === 'l') onFeedback('like');
+      else if (key === 'd') onFeedback('dislike');
+      else if (key === 'u') onFeedback('clear');
+      else if (key === 'help')
+        showToast(
+          'space pause · n next · p prev · t tracks · l like · d dislike · u clear · r retune · q quit',
+        );
+    });
+  }
+  attachKeyboard();
+
+  function currentMoodcastTrack(): Track | null {
+    const sess = state.session;
+    const uri = state.snapshot?.trackUri;
+    if (!sess || !uri) return null;
+    return sess.tracks.find((t) => t.uri === uri) ?? null;
+  }
+
+  function onFeedback(verdict: FeedbackAction): void {
+    const track = currentMoodcastTrack();
+    if (!track) {
+      showToast('No current Moodcast track to rate.');
       return;
     }
-    if (key === 'space') void onSpace();
-    else if (key === 'n') void onSkip('next');
-    else if (key === 'p') void onSkip('previous');
-    else if (key === 'r') showToast('retune coming later');
-    else if (key === 'help') showToast('space pause · n next · p prev · r retune · q quit');
-  });
+    const result = applyFeedbackForTrack({
+      track,
+      verdict,
+      sessionId: state.sessionId ?? undefined,
+    });
+    showToast(result.message);
+  }
+
+  async function openTrackPicker(): Promise<void> {
+    const sess = state.session;
+    if (!sess || sess.tracks.length === 0) {
+      showToast('No active Moodcast session.');
+      return;
+    }
+
+    // Pause the dashboard. The picker owns alt-screen + stdin while open;
+    // playback (if invoked on Enter) prints the Playback Target panel to
+    // the normal terminal between the picker exit and the dashboard
+    // re-entering alt-screen.
+    if (pollHandle) clearInterval(pollHandle);
+    if (renderHandle) clearInterval(renderHandle);
+    stopKeyboardFn();
+
+    const currentUri = state.snapshot?.trackUri ?? '';
+    let currentRawIndex: number | null = null;
+    if (currentUri) {
+      const idx = sess.tracks.findIndex((t) => t.uri === currentUri);
+      if (idx >= 0) currentRawIndex = idx;
+    }
+
+    const result = await pickTrack({
+      session: sess,
+      currentRawIndex,
+      sessionId: state.sessionId ?? undefined,
+    });
+
+    if (result?.action === 'play') {
+      const playResult = await playSessionTrackAt({
+        session: sess,
+        rawIndex: result.rawIndex,
+        retryHint: `track ${result.rawIndex + 1}`,
+      });
+      if (playResult.ok && playResult.playableIndex !== undefined) {
+        // Optimistically advance sessionIdx so the next `n` skips relative
+        // to the new position; the next poll will reconcile against the
+        // Spotify-reported URI.
+        state.sessionIdx = playResult.playableIndex;
+        state.lastTrackUri = null;
+        if (playResult.track) {
+          showToast(`Playing track ${result.rawIndex + 1}: ${playResult.track.title}`);
+        }
+      }
+    }
+
+    // Resume the dashboard.
+    enterAltScreen();
+    attachKeyboard();
+    pollHandle = setInterval(() => { void poll(); }, POLL_MS);
+    renderHandle = setInterval(() => {
+      if (quitting) return;
+      clearAndHome();
+      process.stdout.write(composeFrame());
+    }, RENDER_MS);
+    void poll();
+    clearAndHome();
+    process.stdout.write(composeFrame());
+  }
 
   async function onSpace(): Promise<void> {
     try {
@@ -327,12 +430,24 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
         ? `${chalk.dim('·')} ${state.snapshot.deviceName}`
         : '';
 
-      const np = panelString('Now Playing', [
+      const npLines = [
         chalk.bold(state.snapshot.trackName),
         chalk.hex('#c4b5fd')(state.snapshot.artistName),
         progress,
         `${playState} ${device}`,
-      ]);
+      ];
+      const moodTrack = currentMoodcastTrack();
+      if (moodTrack) {
+        const verdict = getVerdictForTrack(moodTrack);
+        const feedbackLabel =
+          verdict === 'like'
+            ? `${chalk.green('♥')} ${chalk.dim('feedback:')} ${chalk.green('liked')}`
+            : verdict === 'dislike'
+              ? `${chalk.red('✗')} ${chalk.dim('feedback:')} ${chalk.red('disliked')}`
+              : `${chalk.dim('○ feedback: none')}`;
+        npLines.push(feedbackLabel);
+      }
+      const np = panelString('Now Playing', npLines);
       lines.push(...np);
     } else {
       const np = panelString('Now Playing', [
@@ -404,8 +519,11 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
   // First poll immediately
   await poll();
 
-  const pollHandle = setInterval(() => { void poll(); }, POLL_MS);
-  const renderHandle = setInterval(() => {
+  let pollHandle: ReturnType<typeof setInterval> = setInterval(
+    () => { void poll(); },
+    POLL_MS,
+  );
+  let renderHandle: ReturnType<typeof setInterval> = setInterval(() => {
     if (quitting) return;
     clearAndHome();
     process.stdout.write(composeFrame());
@@ -428,7 +546,7 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
   // Teardown
   clearInterval(pollHandle);
   clearInterval(renderHandle);
-  stopKeyboard();
+  stopKeyboardFn();
   leaveAltScreen();
 }
 

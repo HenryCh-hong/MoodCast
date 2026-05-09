@@ -15,14 +15,29 @@ function normalize(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function logUnresolved(track: Track, reason: string): void {
+  // Dev-only: surface unresolved tracks so we can spot a pattern across many
+  // sessions (e.g. an artist whose name never matches Spotify's normalised
+  // form). Production stays silent. NEVER log tokens, deviceIds, or session
+  // metadata beyond title+artist.
+  if (process.env.NODE_ENV === 'production') return;
+  console.warn(
+    `[resolver] unresolved track title="${track.title}" artist="${track.artist}" reason="${reason}"`,
+  );
+}
+
 async function resolveOne(track: Track, token: string): Promise<Track> {
   if (isResolved(track)) return track;
-  if (!track.title || !track.artist) return track;
+  if (!track.title || !track.artist) {
+    logUnresolved(track, 'missing_title_or_artist');
+    return track;
+  }
   const q = `track:${track.title} artist:${track.artist}`;
   let results: Awaited<ReturnType<typeof spotifySearch>>;
   try {
     results = await spotifySearch(q, token);
   } catch {
+    logUnresolved(track, 'spotify_search_error');
     return track;
   }
   const wantArtist = normalize(track.artist);
@@ -35,7 +50,10 @@ async function resolveOne(track: Track, token: string): Promise<Track> {
         normalize(r.artists).includes(wantArtist) &&
         normalize(r.name).startsWith(wantTitle.slice(0, Math.min(wantTitle.length, 18))),
     ) ?? results.find((r) => normalize(r.artists).includes(wantArtist));
-  if (!match) return track;
+  if (!match) {
+    logUnresolved(track, 'no_spotify_match');
+    return track;
+  }
   const id = match.uri.replace(/^spotify:track:/, '');
   return { ...track, uri: match.uri, id };
 }

@@ -36,6 +36,12 @@ import {
   resumeCmd as sessionsResumeCmd,
   deleteCmd as sessionsDeleteCmd,
 } from './sessions.js';
+import {
+  likeCommand,
+  dislikeCommand,
+  clearFeedbackCommand,
+} from './feedback.js';
+import { tracksCommand } from './tracks.js';
 import { pickSession } from '../sessionPicker.js';
 import { setShellMode } from '../utils/shellContext.js';
 
@@ -65,6 +71,10 @@ const HELP_LINES: Array<[string, string]> = [
   ['sessions play  [id]', 'play a session (no id → picker)'],
   ['sessions delete <id>', 'delete a session by id (confirm)'],
   ['track <n>', 'play track N of the current active session (1-indexed)'],
+  ['tracks', 'open the interactive track-queue picker'],
+  ['like', 'like the currently playing track'],
+  ['dislike', 'dislike the currently playing track'],
+  ['feedback clear', 'clear feedback for the currently playing track'],
   ['calendar status', 'apple calendar connection state'],
   ['calendar connect', 'connect apple calendar'],
   ['calendar disconnect', 'disconnect apple calendar'],
@@ -287,6 +297,9 @@ async function dispatch(state: ShellState, line: string): Promise<void> {
       }
       await trackCommand(rest[0]);
       return;
+    case 'tracks':
+      await tracksCommand();
+      return;
     case 'status':
       await statusCommand();
       return;
@@ -314,6 +327,19 @@ async function dispatch(state: ShellState, line: string): Promise<void> {
       return;
     case 'calendar':
       await runCalendar(rest);
+      return;
+    case 'like':
+      await likeCommand();
+      return;
+    case 'dislike':
+      await dislikeCommand();
+      return;
+    case 'feedback':
+      if (rest[0] === 'clear') {
+        await clearFeedbackCommand();
+        return;
+      }
+      console.log(`  ${chalk.dim('usage:')} ${chalk.bold('feedback clear')}`);
       return;
     default:
       console.log(`  ${chalk.dim('unknown command:')} ${chalk.bold(head)}`);

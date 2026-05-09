@@ -1,6 +1,9 @@
 // Raw stdin keyboard handler. Returns a stop function to detach.
 
-export type Key = 'space' | 'n' | 'p' | 'r' | 'q' | 'ctrl-c' | 'help' | 'unknown';
+export type Key =
+  | 'space' | 'n' | 'p' | 'r' | 'q' | 't'
+  | 'l' | 'd' | 'u'
+  | 'ctrl-c' | 'help' | 'unknown';
 
 export function startKeyboard(onKey: (key: Key, raw: string) => void): () => void {
   const stdin = process.stdin;
@@ -21,6 +24,10 @@ export function startKeyboard(onKey: (key: Key, raw: string) => void): () => voi
     else if (data === 'p' || data === 'P') key = 'p';
     else if (data === 'r' || data === 'R') key = 'r';
     else if (data === 'q' || data === 'Q') key = 'q';
+    else if (data === 'l' || data === 'L') key = 'l';
+    else if (data === 'd' || data === 'D') key = 'd';
+    else if (data === 'u' || data === 'U') key = 'u';
+    else if (data === 't' || data === 'T') key = 't';
     else if (data === '?' || data === 'h' || data === 'H') key = 'help';
     else if (data === '\x03' /* Ctrl+C */ || data === '\x04' /* Ctrl+D */) key = 'ctrl-c';
 

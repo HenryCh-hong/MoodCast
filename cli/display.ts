@@ -209,12 +209,21 @@ export function progressBarString(posMs: number, durMs: number, cells = 30): str
 
 export function shortcutsLine(): string {
   const s = (k: string, label: string) => `${chalk.bold.hex('#c4b5fd')(k)} ${chalk.dim(label)}`;
-  return [
+  // Two lines: playback on top, feedback below — keeps both rows under 80 cols
+  // on a stock terminal.
+  const playback = [
     s('space', 'pause/play'),
     s('n', 'next'),
     s('p', 'prev'),
+    s('t', 'tracks'),
     s('r', 'retune'),
     s('q', 'quit'),
   ].join(chalk.dim('  ·  '));
+  const feedback = [
+    s('l', 'like'),
+    s('d', 'dislike'),
+    s('u', 'clear feedback'),
+  ].join(chalk.dim('  ·  '));
+  return `${playback}\n  ${feedback}`;
 }
 

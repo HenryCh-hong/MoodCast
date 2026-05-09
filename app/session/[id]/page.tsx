@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getDemoSession } from '@/lib/demo/demoSessions';
 import { getSession } from '@/lib/storage/localSessions';
@@ -193,15 +193,30 @@ export default function SessionPage() {
     }
   }, [deviceId, session, id, setDeviceId, setSessionIndex]);
 
+  // Whether this session has any rows the SDK can actually play. Used to
+  // disable Start Playback up-front instead of letting the user click and
+  // get a backend error a second later. Recomputes when the track list
+  // changes (e.g. after Ask DJ rewrites the queue).
+  const hasPlayableRow = useMemo(
+    () => (session?.tracks ?? []).some((t) => isValidSpotifyTrackUri(t.uri ?? '')),
+    [session?.tracks],
+  );
+
   // "Start Playback" — find the first playable row and play from there.
-  // Falls back to row 0 if the session has no playable rows (the route will
-  // surface a friendly error in that case).
+  // The button is disabled when no playable row exists, so this should
+  // only run when there is at least one playable URI.
   const startPlayback = useCallback(() => {
     if (!session) return;
     const firstPlayableRow = session.tracks.findIndex((t) =>
       isValidSpotifyTrackUri(t.uri ?? ''),
     );
-    void playFromRowIndex(firstPlayableRow === -1 ? 0 : firstPlayableRow);
+    if (firstPlayableRow === -1) {
+      setPlayerError(
+        'This session has no playable Spotify tracks. Regenerate with Spotify connected.',
+      );
+      return;
+    }
+    void playFromRowIndex(firstPlayableRow);
   }, [session, playFromRowIndex]);
 
   if (loading) {
@@ -257,14 +272,21 @@ export default function SessionPage() {
         <div className="mt-4 mb-6 flex flex-col gap-2">
           <button
             onClick={startPlayback}
-            disabled={playbackPending}
-            className="self-start px-4 py-2 rounded bg-mc-lav text-[#1a1228] text-[12px] font-bold tracking-tight hover:opacity-90 transition-opacity disabled:opacity-50"
+            disabled={playbackPending || !hasPlayableRow}
+            aria-disabled={playbackPending || !hasPlayableRow}
+            className="self-start px-4 py-2 rounded bg-mc-lav text-[#1a1228] text-[12px] font-bold tracking-tight hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {playbackPending ? 'Starting···' : '▶ Start Playback'}
           </button>
-          <p className="text-[9px] font-mono text-mc-dim tracking-[0.12em]">
-            Moodcast appears as a Spotify Connect device, not a playlist.
-          </p>
+          {hasPlayableRow ? (
+            <p className="text-[9px] font-mono text-mc-dim tracking-[0.12em]">
+              Moodcast appears as a Spotify Connect device, not a playlist.
+            </p>
+          ) : (
+            <p className="text-[11px] font-bold tracking-tight text-mc-onair">
+              This session has no playable Spotify tracks. Regenerate with Spotify connected.
+            </p>
+          )}
         </div>
       )}
 

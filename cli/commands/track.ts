@@ -3,16 +3,12 @@
 //
 // Reads the active session from ~/.moodcast/active-session.json so this
 // works whether the session was generated in the web app or the terminal.
-// No AI call, no regeneration — just playback handoff to the existing
-// session's URI list with an explicit start index.
+// No AI call, no regeneration — just playback handoff via the shared
+// `playSessionTrackAt` helper, which is also used by the `tracks` picker.
 
-import chalk from 'chalk';
-import { getValidToken } from '../auth.js';
 import { readActiveSession } from '../../lib/sessions/activeSession.js';
-import { startSessionPlayback } from '../utils/playback.js';
+import { playSessionTrackAt } from '../utils/playSessionTrack.js';
 import { header, error, success, recovery } from '../display.js';
-import { authRecoveryHint } from '../utils/shellContext.js';
-import { sanitizeSpotifyTrackUris, isValidSpotifyTrackUri } from '../../lib/spotify/uris.js';
 
 export async function trackCommand(numberRaw: string | number | undefined): Promise<void> {
   header();
@@ -31,49 +27,19 @@ export async function trackCommand(numberRaw: string | number | undefined): Prom
     ]);
     return;
   }
-  const tracks = active.session.tracks;
-  if (!tracks || tracks.length === 0) {
+  if (!active.session.tracks || active.session.tracks.length === 0) {
     error('Active session has no tracks.');
     return;
   }
 
-  const rowIndex = (n as number) - 1;
-  if (rowIndex >= tracks.length) {
-    error(`Track ${n} is out of range — this session has ${tracks.length} track${tracks.length === 1 ? '' : 's'}.`);
-    return;
-  }
-
-  const target = tracks[rowIndex];
-  const allRowUris = tracks.map((t) => t.uri ?? '');
-  if (!isValidSpotifyTrackUri(allRowUris[rowIndex])) {
-    error(`Track ${n} (${target.title} — ${target.artist}) has no Spotify URI yet.`);
-    recovery(['try a neighbouring track, or regenerate the session with Spotify connected']);
-    return;
-  }
-
-  // Translate row index → playable index, since startSessionPlayback only
-  // sees the sanitized list.
-  let playableIndex = 0;
-  for (let i = 0; i < rowIndex; i += 1) {
-    if (isValidSpotifyTrackUri(allRowUris[i])) playableIndex += 1;
-  }
-  const playable = sanitizeSpotifyTrackUris(allRowUris);
-
-  const token = await getValidToken();
-  if (!token) {
-    error('Not authenticated.');
-    recovery([authRecoveryHint()]);
-    return;
-  }
-
-  console.log(`  ${chalk.dim('cueing')}  ${chalk.bold(target.title)} ${chalk.dim('—')} ${chalk.hex('#c4b5fd')(target.artist)}  ${chalk.dim(`(track ${n}/${tracks.length})`)}`);
-
-  const result = await startSessionPlayback(token, playable, {
+  const rawIndex = (n as number) - 1;
+  const result = await playSessionTrackAt({
+    session: active.session,
+    rawIndex,
     retryHint: `track ${n}`,
-    startIndex: playableIndex,
   });
-  if (!result.ok) return;
-
-  success(`Playing track ${n}: ${target.title}`);
-  console.log('');
+  if (result.ok && result.track) {
+    success(`Playing track ${n}: ${result.track.title}`);
+    console.log('');
+  }
 }

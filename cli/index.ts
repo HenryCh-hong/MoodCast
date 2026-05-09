@@ -18,6 +18,12 @@ import { setupCommand } from './commands/setup.js';
 import { appCommand } from './commands/app.js';
 import { shortcutCommand } from './commands/shortcut.js';
 import {
+  likeCommand,
+  dislikeCommand,
+  clearFeedbackCommand,
+} from './commands/feedback.js';
+import { tracksCommand } from './commands/tracks.js';
+import {
   calendarConnect,
   calendarDisconnect,
   calendarStatus,
@@ -223,5 +229,28 @@ program
   .command('track <n>')
   .description('Play track N (1-indexed) of the currently active Moodcast session')
   .action((n: string) => trackCommand(n));
+
+program
+  .command('tracks')
+  .description('Open the interactive track-queue picker for the active session')
+  .action(() => tracksCommand());
+
+program
+  .command('like')
+  .description('Like the currently playing Moodcast track')
+  .action(() => likeCommand());
+
+program
+  .command('dislike')
+  .description('Dislike the currently playing Moodcast track')
+  .action(() => dislikeCommand());
+
+const feedback = program
+  .command('feedback')
+  .description('Manage like/dislike feedback for the currently playing track');
+feedback
+  .command('clear')
+  .description('Clear feedback for the currently playing Moodcast track')
+  .action(() => clearFeedbackCommand());
 
 program.parse();

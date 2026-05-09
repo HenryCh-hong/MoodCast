@@ -1,5 +1,7 @@
+'use client';
+
 import { cn } from '@/lib/utils';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Track } from '@/lib/types/moodcast';
 import {
   buildSessionQueueMapping,
@@ -19,11 +21,13 @@ interface TrackQueueProps {
    */
   sessionIndex?: number | null;
   /**
-   * When provided, each row becomes a "play from this track" action.
-   * The session page wires this up to playFromRowIndex(i), which translates
-   * the raw row index to a playable index and POSTs to /api/playback/start.
-   * Omit on session pages where the user can't play — rows fall back to a
-   * static display.
+   * When provided, each playable row becomes a "play from this track"
+   * action. The session page wires this up to playFromRowIndex(i), which
+   * translates the raw row index to a playable index and POSTs to
+   * /api/playback/start. Omit on session pages where the user can't play
+   * (free tier, no device) — playable rows fall back to a static display.
+   * Unplayable rows stay interactive in either mode so the user can still
+   * see the "why" + open the track in another service.
    */
   onPlayTrack?: (index: number) => void;
   playbackPending?: boolean;
@@ -37,14 +41,126 @@ const FAMILIARITY_LABEL: Record<NonNullable<Track['familiarityLevel']>, string> 
   discovery: 'discovery',
 };
 
-export function TrackQueue({ tracks, sessionIndex, onPlayTrack, playbackPending, sessionId }: TrackQueueProps) {
+const UNPLAYABLE_TOOLTIP =
+  'This track could not be matched to a playable Spotify track.';
+const UNPLAYABLE_EXPLANATION =
+  'This track is not playable on Spotify. Try regenerating with Spotify connected, or open it in another service.';
+
+// Pure URL builders for "search this track on …". These mirror
+// lib/music/providers/{spotify,qqmusic,netease}.ts so the chip actions stay
+// honest about what each link does (search/open, never playback).
+function spotifySearchUrl(title: string, artist: string): string {
+  const q = `${title} ${artist}`.trim();
+  return `https://open.spotify.com/search/${encodeURIComponent(q)}`;
+}
+function qqMusicSearchUrl(title: string, artist: string): string {
+  const q = `${title} ${artist}`.trim();
+  return `https://y.qq.com/n/ryqq/search?w=${encodeURIComponent(q)}`;
+}
+function neteaseSearchUrl(title: string, artist: string): string {
+  const q = `${title} ${artist}`.trim();
+  return `https://music.163.com/#/search/m/?s=${encodeURIComponent(q)}`;
+}
+
+interface UnplayableActionsProps {
+  title: string;
+  artist: string;
+}
+
+function UnplayableActions({ title, artist }: UnplayableActionsProps) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyTitleArtist(): Promise<void> {
+    const text = `${title} — ${artist}`;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Older browser fallback — best effort, don't error on read-only.
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* ignore — UI just doesn't flash "copied" */
+    }
+  }
+
+  const linkClass =
+    'inline-block px-2 py-1 rounded border border-mc-border text-[10px] font-bold tracking-tight text-mc-mid hover:text-mc-hi hover:border-mc-lav/40 transition-colors';
+
+  return (
+    <div
+      role="region"
+      aria-label="Unplayable track actions"
+      className="mt-2 ml-12 mr-2 border-l-2 border-mc-onair/40 pl-3 py-2"
+    >
+      <p className="text-[11px] font-bold tracking-tight text-mc-mid mb-2">
+        {UNPLAYABLE_EXPLANATION}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => void copyTitleArtist()}
+          className={linkClass}
+          aria-live="polite"
+        >
+          {copied ? 'Copied' : 'Copy title + artist'}
+        </button>
+        <a
+          href={spotifySearchUrl(title, artist)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={linkClass}
+        >
+          Search on Spotify
+        </a>
+        <a
+          href={qqMusicSearchUrl(title, artist)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={linkClass}
+        >
+          Search on QQ Music
+        </a>
+        <a
+          href={neteaseSearchUrl(title, artist)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={linkClass}
+        >
+          Search on NetEase Cloud Music
+        </a>
+      </div>
+      <p className="mt-2 text-[9px] font-mono tracking-[0.12em] text-mc-dim">
+        QQ Music / NetEase links open the provider site for search — Moodcast
+        does not play those services in-app.
+      </p>
+    </div>
+  );
+}
+
+export function TrackQueue({
+  tracks,
+  sessionIndex,
+  onPlayTrack,
+  playbackPending,
+  sessionId,
+}: TrackQueueProps) {
   const mapping = useMemo(() => buildSessionQueueMapping(tracks), [tracks]);
   const { verdictFor, toggle: toggleFeedback } = useFeedback();
+  const [unplayableExpanded, setUnplayableExpanded] = useState<number | null>(null);
 
   // NOW row is the raw index of the current playable position. NEXT row is
   // the raw index of (sessionIndex + 1). Both come from the canonical
   // mapping so the visible labels always agree with what Spotify will
-  // actually play next from the sanitized queue.
+  // actually play next from the sanitized queue. Crucially: NEXT will never
+  // land on an unplayable row because it's derived from the playable index.
   //
   // When sessionIndex is null (no playback yet), we default NOW to the
   // first playable row so the queue still has a sensible head. NEXT is
@@ -62,9 +178,10 @@ export function TrackQueue({ tracks, sessionIndex, onPlayTrack, playbackPending,
           const isNext = !isNow && i === nextRawIndex;
           const label = isNow ? 'NOW' : isNext ? 'NEXT' : `CUE ${i + 1}`;
           const opacity = isNow ? '' : isNext ? 'opacity-65' : 'opacity-40';
-          const playable =
-            typeof onPlayTrack === 'function' && isValidSpotifyTrackUri(track.uri ?? '');
+          const isPlayable = isValidSpotifyTrackUri(track.uri ?? '');
+          const canPlayHere = typeof onPlayTrack === 'function' && isPlayable;
           const verdict = verdictFor(track);
+          const isExpanded = unplayableExpanded === i;
 
           const meta = (
             <>
@@ -78,7 +195,12 @@ export function TrackQueue({ tracks, sessionIndex, onPlayTrack, playbackPending,
                   ↳ {track.transitionLine}
                 </p>
               )}
-              <p className="text-[13px] font-bold tracking-tight text-mc-hi truncate">
+              <p
+                className={cn(
+                  'text-[13px] font-bold tracking-tight truncate',
+                  isPlayable ? 'text-mc-hi' : 'text-mc-mid line-through decoration-mc-dim/50',
+                )}
+              >
                 {track.title}
               </p>
               <p className="text-[11px] font-bold tracking-tight text-mc-lo">{track.artist}</p>
@@ -96,6 +218,17 @@ export function TrackQueue({ tracks, sessionIndex, onPlayTrack, playbackPending,
                     </span>
                   </>
                 )}
+                {!isPlayable && (
+                  <>
+                    <span className="text-[9px] text-mc-dim/40">·</span>
+                    <span
+                      className="text-[9px] font-bold tracking-[0.12em] uppercase text-mc-onair/90 border border-mc-onair/30 rounded px-1.5 py-0.5"
+                      title={UNPLAYABLE_TOOLTIP}
+                    >
+                      Not playable
+                    </span>
+                  </>
+                )}
               </div>
               {track.whyThisSourceFits && (
                 <p
@@ -109,65 +242,99 @@ export function TrackQueue({ tracks, sessionIndex, onPlayTrack, playbackPending,
             </>
           );
 
-          // Use a div as the row container so the feedback buttons can be
-          // real <button>s without being nested inside another <button>
-          // (invalid HTML and a screen-reader trap). Play-on-click sits on
-          // an inner button covering the text column only.
+          // Row container — always a div so the feedback buttons can be real
+          // <button>s without nesting (invalid HTML and a screen-reader trap).
+          // The clickable region depends on play vs unplayable:
+          //   - playable + onPlayTrack defined → button calls onPlayTrack(i)
+          //   - playable + no onPlayTrack       → static text (free tier)
+          //   - unplayable                      → button toggles inline expansion
+          //                                       (works regardless of onPlayTrack
+          //                                        so free tier still gets the
+          //                                        explanation + search actions)
+          const rowInteractiveClass = canPlayHere
+            ? 'hover:bg-mc-elevated/40'
+            : !isPlayable
+              ? 'hover:bg-mc-elevated/20'
+              : '';
+
           return (
             <div
               key={i}
               className={cn(
-                'group flex items-start gap-4 w-full text-left rounded px-1 -mx-1 py-0.5 transition-colors',
+                'group rounded transition-colors',
                 opacity,
-                playable && 'hover:bg-mc-elevated/40',
+                rowInteractiveClass,
               )}
             >
-              <span
-                className={cn(
-                  'text-[9px] font-bold tracking-[0.15em] w-12 shrink-0 pt-0.5',
-                  isNow ? 'text-mc-lav' : 'text-mc-lo',
-                )}
-              >
-                {label}
-              </span>
-              {playable ? (
-                <button
-                  type="button"
-                  onClick={() => onPlayTrack!(i)}
-                  disabled={playbackPending}
-                  aria-label={`Play track ${i + 1}: ${track.title} by ${track.artist}`}
-                  className="flex-1 min-w-0 text-left focus:outline-none focus:ring-1 focus:ring-mc-lav rounded disabled:cursor-progress"
+              <div className="flex items-start gap-4 w-full text-left px-1 -mx-1 py-0.5">
+                <span
+                  className={cn(
+                    'text-[9px] font-bold tracking-[0.15em] w-12 shrink-0 pt-0.5',
+                    isNow ? 'text-mc-lav' : 'text-mc-lo',
+                  )}
                 >
-                  {meta}
-                </button>
-              ) : (
-                <div className="flex-1 min-w-0">{meta}</div>
-              )}
-              <div className="shrink-0 flex items-center gap-2 pt-0.5">
-                <FeedbackButtons
-                  track={track}
-                  verdict={verdict}
-                  onToggle={(v) => toggleFeedback(track, v, sessionId)}
-                />
-                {playable && (
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      'text-[14px] leading-none transition-opacity',
-                      isNow ? 'text-mc-lav opacity-100' : 'text-mc-mid opacity-0 group-hover:opacity-100',
-                    )}
+                  {label}
+                </span>
+                {canPlayHere ? (
+                  <button
+                    type="button"
+                    onClick={() => onPlayTrack!(i)}
+                    disabled={playbackPending}
+                    aria-label={`Play track ${i + 1}: ${track.title} by ${track.artist}`}
+                    className="flex-1 min-w-0 text-left focus:outline-none focus:ring-1 focus:ring-mc-lav rounded disabled:cursor-progress"
                   >
-                    ▶
-                  </span>
+                    {meta}
+                  </button>
+                ) : !isPlayable ? (
+                  <button
+                    type="button"
+                    onClick={() => setUnplayableExpanded(isExpanded ? null : i)}
+                    aria-expanded={isExpanded}
+                    aria-label={`Track ${i + 1} is not playable on Spotify — click for options`}
+                    title={UNPLAYABLE_TOOLTIP}
+                    className="flex-1 min-w-0 text-left focus:outline-none focus:ring-1 focus:ring-mc-onair/60 rounded cursor-help"
+                  >
+                    {meta}
+                  </button>
+                ) : (
+                  <div className="flex-1 min-w-0">{meta}</div>
                 )}
+                <div className="shrink-0 flex items-center gap-2 pt-0.5">
+                  <FeedbackButtons
+                    track={track}
+                    verdict={verdict}
+                    onToggle={(v) => toggleFeedback(track, v, sessionId)}
+                  />
+                  {isPlayable ? (
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'text-[14px] leading-none transition-opacity',
+                        isNow ? 'text-mc-lav opacity-100' : 'text-mc-mid opacity-0 group-hover:opacity-100',
+                      )}
+                    >
+                      ▶
+                    </span>
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="text-[14px] leading-none text-mc-onair/60 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {isExpanded ? '▾' : '▸'}
+                    </span>
+                  )}
+                </div>
               </div>
+              {!isPlayable && isExpanded && (
+                <UnplayableActions title={track.title} artist={track.artist} />
+              )}
             </div>
           );
         })}
       </div>
       {onPlayTrack && (
         <p className="mt-3 text-[9px] font-mono text-mc-dim tracking-[0.12em]">
-          Click any track to play from there.
+          Click any track to play from there. Greyed-out rows aren’t available on Spotify.
         </p>
       )}
     </div>
