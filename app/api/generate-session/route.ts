@@ -25,6 +25,9 @@ import {
   regenerateInstruction,
 } from '@/lib/ai/sessionValidation';
 import { readPreferences } from '@/lib/storage/preferencesServer';
+import { readFeedback } from '@/lib/feedback/feedbackStore';
+import { summarizeFeedback } from '@/lib/feedback/aggregate';
+import { filterDislikedExactTracks } from '@/lib/feedback/applyToSession';
 import type { BroadcastFormData, MoodcastSession } from '@/lib/types/moodcast';
 import type { MomentContext, DiscoveryDial } from '@/lib/types/momentContext';
 import type { SelectedTagSet } from '@/lib/types/tags';
@@ -126,12 +129,27 @@ export async function POST(req: NextRequest) {
         : dial;
     console.log(`[discovery] maturity=${maturity} dial=${dial} mix=${mixLabel}`);
 
+    let feedbackRecords: ReturnType<typeof readFeedback> = [];
+    let feedbackSummary;
+    try {
+      feedbackRecords = readFeedback();
+      feedbackSummary = summarizeFeedback(feedbackRecords);
+      if (feedbackSummary.hasFeedback) {
+        console.log(
+          `[feedback] likes=${feedbackSummary.totals.likes} dislikes=${feedbackSummary.totals.dislikes} blockedUris=${feedbackSummary.dislikedTrackUris.length}`,
+        );
+      }
+    } catch {
+      /* feedback file unreadable — continue without it */
+    }
+
     let session: MoodcastSession = await generateMoodcastSession({
       form,
       tasteProfile,
       momentContext,
       selectedTags,
       discoveryDial: dial,
+      feedbackSummary,
     });
 
     // Source-intent diagnostics. Warn (do not throw) on degenerate distributions.
@@ -153,6 +171,7 @@ export async function POST(req: NextRequest) {
           selectedTags,
           discoveryDial: dial,
           extraInstruction: regenerateInstruction(dial),
+          feedbackSummary,
         });
         summary = summarizeSourceIntent(session);
         console.warn(`[generate-session] post-retry: ${describeIntentSummary(summary)}`);
@@ -176,6 +195,16 @@ export async function POST(req: NextRequest) {
         }
       } catch (resolveErr) {
         console.warn('[generate-session] uri resolution failed:', resolveErr);
+      }
+    }
+
+    // Soft post-pass: blank URIs of any exactly-disliked tracks so the queue
+    // never repeats them. We don't drop the row outright — see applyToSession.
+    if (feedbackRecords.length) {
+      const filtered = filterDislikedExactTracks(session, feedbackRecords);
+      if (filtered.blocked > 0) {
+        console.log(`[feedback] blocked exact-disliked tracks: ${filtered.blocked}`);
+        session = filtered.session;
       }
     }
 

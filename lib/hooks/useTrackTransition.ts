@@ -62,6 +62,10 @@ export function useTrackTransition(): void {
     if (timerRef.current) clearTimeout(timerRef.current);
     setDjCue(cueText);
     timerRef.current = setTimeout(() => setDjCue(null), CUE_DURATION_MS);
+    // Depending on the deeply-nested .uri (a string) is intentional: the SDK
+    // re-creates the track object on every state tick, so depending on the
+    // object would re-run this effect on every progress update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerState?.track_window?.current_track?.uri, currentSession, setDjCue]);
 
   // Cleanup on unmount

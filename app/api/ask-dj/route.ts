@@ -6,10 +6,21 @@ import { buildAskDJSystemPrompt } from '@/lib/ai/moodcastPrompt';
 import type { AskDJRequest, AskDJStructuredResponse, TasteProfile } from '@/lib/types/moodcast';
 
 export async function POST(req: NextRequest) {
-  if (!getActiveProvider()) {
+  const provider = getActiveProvider();
+  if (!provider) {
     return NextResponse.json<AskDJStructuredResponse>({
       type: 'message',
-      djMessage: 'MooC chat needs GOOGLE_API_KEY or ANTHROPIC_API_KEY in .env.local.',
+      djMessage: 'MooC chat needs ANTHROPIC_API_KEY in .env.local.',
+    });
+  }
+  // Ask DJ requires reliable structured-JSON output. Gemini's path here does
+  // not enable JSON mode, and was flaky enough in practice that we restrict
+  // chat to Anthropic. Session generation still supports both providers.
+  if (provider !== 'anthropic') {
+    return NextResponse.json<AskDJStructuredResponse>({
+      type: 'message',
+      djMessage:
+        'MooC chat is Anthropic-only right now. Set ANTHROPIC_API_KEY in .env.local to enable Ask DJ.',
     });
   }
 

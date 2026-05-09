@@ -2,6 +2,7 @@
 import type { BroadcastFormData, TasteProfile } from '@/lib/types/moodcast';
 import type { MomentContext, DiscoveryDial } from '@/lib/types/momentContext';
 import type { SelectedTagSet } from '@/lib/types/tags';
+import type { FeedbackSummary } from '@/lib/feedback/aggregate';
 import { dayName } from '@/lib/context/time';
 
 const DJ_PERSONA = `You are DJ MOOC — Moodcast's AI radio companion. Your voice is calm, precise, with the emotional intelligence of a late-night radio host who actually listens. Small, warm, slightly weird. Terminal-native. Not corporate, not hype-beast, never pretending to be human.
@@ -100,9 +101,24 @@ VOICE RULES:
 - AVOID: "I know exactly how you feel", "I know where you are", "I know your schedule", therapy language,
   exact event titles, exact locations, attendee names, addresses, or any creepy/overconfident claim.`;
 
-export function buildSystemPrompt(tasteProfile?: TasteProfile): string {
+function buildFeedbackBlock(summary?: FeedbackSummary): string {
+  if (!summary || !summary.hasFeedback || !summary.promptSummary) return '';
+  return [
+    '',
+    'USER FEEDBACK SUMMARY (soft signal — gentle, not absolute):',
+    summary.promptSummary,
+    'Rules:',
+    '- Avoid repeating exact disliked tracks unless the user explicitly asks for them.',
+    '- Lightly favour artists / textures the user has liked when otherwise tied.',
+    '- One dislike on a single track is NOT a permanent ban on the whole artist.',
+    '- Do NOT echo the dislike list, name disliked tracks, or comment on the user’s feedback in the DJ voice.',
+  ].join('\n');
+}
+
+export function buildSystemPrompt(tasteProfile?: TasteProfile, feedbackSummary?: FeedbackSummary): string {
+  const feedbackBlock = buildFeedbackBlock(feedbackSummary);
   if (!tasteProfile) {
-    return DJ_PERSONA;
+    return DJ_PERSONA + feedbackBlock;
   }
 
   const topArtistsStr = (tasteProfile.topArtists ?? [])
@@ -157,7 +173,7 @@ export function buildSystemPrompt(tasteProfile?: TasteProfile): string {
 USER TASTE PROFILE:
 Top Artists: ${topArtistsStr}
 Top Tracks: ${topTracksStr}
-Recent: ${recentTracksStr}${contextualSection}
+Recent: ${recentTracksStr}${contextualSection}${feedbackBlock}
 
 Select tracks from this pool whenever possible. Use the URIs exactly as listed.
 When contextual signals are present, let them gently shape — not override — track selection and the opening monologue's tone. Do not mention the signals explicitly in the DJ voice.`;

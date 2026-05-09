@@ -6,6 +6,7 @@ import { asQuotaError } from './quotaError';
 import type { BroadcastFormData, MoodcastSession, TasteProfile } from '@/lib/types/moodcast';
 import type { MomentContext, DiscoveryDial } from '@/lib/types/momentContext';
 import type { SelectedTagSet } from '@/lib/types/tags';
+import type { FeedbackSummary } from '@/lib/feedback/aggregate';
 
 interface GenerateOptions {
   form: BroadcastFormData;
@@ -15,6 +16,8 @@ interface GenerateOptions {
   discoveryDial?: DiscoveryDial;
   /** Extra one-shot user-prompt instruction; used to push harder on discovery after a weak first generation. */
   extraInstruction?: string;
+  /** Aggregated like/dislike summary — passed through to the system prompt. */
+  feedbackSummary?: FeedbackSummary;
 }
 
 // Pull maturity off the taste profile if present. Defaults to 'established'
@@ -78,7 +81,7 @@ async function generateWithClaude(opts: GenerateOptions): Promise<MoodcastSessio
       system: [
         {
           type: 'text',
-          text: buildSystemPrompt(opts.tasteProfile),
+          text: buildSystemPrompt(opts.tasteProfile, opts.feedbackSummary),
           cache_control: { type: 'ephemeral' },
         },
       ],
@@ -111,7 +114,7 @@ async function generateWithGemini(opts: GenerateOptions): Promise<MoodcastSessio
   const genai = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
   const model = genai.getGenerativeModel({
     model: 'gemini-2.5-flash',
-    systemInstruction: buildSystemPrompt(opts.tasteProfile),
+    systemInstruction: buildSystemPrompt(opts.tasteProfile, opts.feedbackSummary),
   });
 
   let raw: string;

@@ -41,6 +41,9 @@ import { buildMomentContext } from '../../lib/context/momentContext.js';
 import { authRecoveryHint, rerunHint, isShellMode } from '../utils/shellContext.js';
 import { analyzeListeningPatterns } from '../../lib/taste/contextual.js';
 import { listSessions } from '../../lib/sessions/sessionLibrary.js';
+import { readFeedback } from '../../lib/feedback/feedbackStore.js';
+import { summarizeFeedback } from '../../lib/feedback/aggregate.js';
+import { filterDislikedExactTracks } from '../../lib/feedback/applyToSession.js';
 import { suggestTags } from '../../lib/tags/suggest.js';
 import { pickTags } from '../tagPicker.js';
 import { pickTuningMode } from '../tuningModePicker.js';
@@ -370,12 +373,30 @@ export async function startCommand(opts: StartOptions = {}): Promise<void> {
         ? 'taste-safe-70-30'
         : dial;
     console.error(chalk.dim(`  [discovery] maturity=${maturity} dial=${dial} mix=${mixLabel}`));
+
+    let feedbackRecords: ReturnType<typeof readFeedback> = [];
+    let feedbackSummary;
+    try {
+      feedbackRecords = readFeedback();
+      feedbackSummary = summarizeFeedback(feedbackRecords);
+      if (feedbackSummary.hasFeedback) {
+        console.error(
+          chalk.dim(
+            `  [feedback] likes=${feedbackSummary.totals.likes} dislikes=${feedbackSummary.totals.dislikes} blocked=${feedbackSummary.dislikedTrackUris.length}`,
+          ),
+        );
+      }
+    } catch {
+      /* feedback file unreadable — continue */
+    }
+
     session = await generateMoodcastSession({
       form,
       tasteProfile: taste,
       momentContext: ctx,
       selectedTags: selected,
       discoveryDial: dial,
+      feedbackSummary,
     });
     let summary = summarizeSourceIntent(session);
     if (summary.missingSourceIntent > Math.ceil(summary.total / 2)) {
@@ -395,6 +416,7 @@ export async function startCommand(opts: StartOptions = {}): Promise<void> {
           selectedTags: selected,
           discoveryDial: dial,
           extraInstruction: regenerateInstruction(dial),
+          feedbackSummary,
         });
         summary = summarizeSourceIntent(session);
         console.error(chalk.dim(`  (post-rebalance: ${describeIntentSummary(summary)})`));
@@ -415,6 +437,13 @@ export async function startCommand(opts: StartOptions = {}): Promise<void> {
       }
     } catch (resolveErr) {
       console.error(chalk.dim('  (uri resolution failed)'), resolveErr);
+    }
+    if (feedbackRecords.length) {
+      const filtered = filterDislikedExactTracks(session, feedbackRecords);
+      if (filtered.blocked > 0) {
+        console.error(chalk.dim(`  (feedback: blocked ${filtered.blocked} exact-disliked tracks)`));
+        session = filtered.session;
+      }
     }
     buildBar(4, 4);
     sessionId = `cli-${Date.now().toString(36)}`;

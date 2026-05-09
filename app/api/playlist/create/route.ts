@@ -36,15 +36,6 @@ async function addViaQueryParam(token: string, playlistId: string, uris: string[
   return { ok: res.ok, status: res.status, body };
 }
 
-async function deleteEmptyPlaylist(token: string, playlistId: string): Promise<void> {
-  try {
-    await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/followers`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-  } catch { /* best-effort cleanup */ }
-}
-
 export async function POST(req: NextRequest) {
   const token = await getValidAccessToken();
   if (!token) {
@@ -96,7 +87,6 @@ export async function POST(req: NextRequest) {
   // Add tracks — try JSON body first, then query-param fallback
   console.log('[playlist/create] adding', trackUris.length, 'tracks to', playlist.id);
 
-  let addResult: AddResult | null = null;
   let method = 'json';
 
   for (let i = 0; i < trackUris.length; i += 100) {
@@ -105,17 +95,13 @@ export async function POST(req: NextRequest) {
     const jsonResult = await addViaJsonBody(token, playlist.id, batch);
     console.log('[playlist/create] addTracks batch', i / 100, 'json:', jsonResult.status);
 
-    if (jsonResult.ok) {
-      addResult = jsonResult;
-      continue;
-    }
+    if (jsonResult.ok) continue;
 
     // JSON body failed — try query param
     const queryResult = await addViaQueryParam(token, playlist.id, batch);
     console.log('[playlist/create] addTracks batch', i / 100, 'queryparam:', queryResult.status);
 
     if (queryResult.ok) {
-      addResult = queryResult;
       method = 'queryparam';
       continue;
     }

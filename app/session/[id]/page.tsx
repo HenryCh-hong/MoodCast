@@ -250,6 +250,7 @@ export default function SessionPage() {
         sessionIndex={sessionIndex}
         onPlayTrack={isPremiumWithPlayer && deviceId ? (i) => void playFromRowIndex(i) : undefined}
         playbackPending={playbackPending}
+        sessionId={id}
       />
 
       {isPremiumWithPlayer && deviceId && (

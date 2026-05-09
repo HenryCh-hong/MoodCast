@@ -14,7 +14,9 @@ import {
 } from '@/lib/session/queueMapping';
 import { SpeakingIndicator } from '@/components/companion/SpeakingIndicator';
 import { MoocSettingsPanel } from '@/components/companion/MoocSettingsPanel';
-import type { AskDJResponseRetune, MoodcastSession } from '@/lib/types/moodcast';
+import { FeedbackButtons } from '@/components/feedback/FeedbackButtons';
+import { useFeedback } from '@/lib/hooks/useFeedback';
+import type { AskDJResponseRetune, MoodcastSession, Track } from '@/lib/types/moodcast';
 
 const QUICK_ACTIONS = [
   { label: 'softer', q: 'Shift the energy down — what track fits next?' },
@@ -74,6 +76,7 @@ export function FloatingDJCompanion() {
   } = useMoodcast();
   const { ask, loading, response, pendingRetune, clearResponse, clearPendingRetune } = useAskDJ(currentSession);
   const { pos, onHeaderMouseDown } = useDraggableCompanion();
+  const { verdictFor, toggle: toggleFeedback } = useFeedback();
   useTrackTransition();
   // Drives browser TTS when a cue arrives. Reads gating from preferences.
   useMoocVoice();
@@ -101,6 +104,17 @@ export function FloatingDJCompanion() {
   })();
   const trackTotal = currentSession?.tracks.length ?? 0;
   const albumArt = track?.album?.images?.[0]?.url;
+  // Resolve the matching session-track row so we know its source-intent /
+  // familiarity metadata when recording feedback. Null for external tracks.
+  const sessionTrack: Track | null = (() => {
+    if (!currentSession || !track) return null;
+    if (typeof sessionIndex === 'number' && queueMapping) {
+      const raw = playableToRawIndex(queueMapping, sessionIndex);
+      if (raw !== null && currentSession.tracks[raw]) return currentSession.tracks[raw];
+    }
+    return currentSession.tracks.find((t) => t.uri === track.uri) ?? null;
+  })();
+  const sessionIdForFeedback = (currentSession as { id?: string } | null)?.id;
 
   const isConnected = Boolean(spotifyProfile?.connected);
   const isPremium = isConnected && Boolean(spotifyProfile?.isPremium);
@@ -294,11 +308,20 @@ export function FloatingDJCompanion() {
                 <p className="text-mc-lo text-[10px] truncate">
                   {track.artists.map((a) => a.name).join(', ')}
                 </p>
-                {trackTotal > 0 && (
-                  <p className="text-mc-mid text-[9px] mt-0.5 font-mono">
-                    {trackIndex > 0 ? trackIndex : '?'} / {trackTotal}
-                  </p>
-                )}
+                <div className="flex items-center gap-2 mt-1">
+                  {trackTotal > 0 && (
+                    <p className="text-mc-mid text-[9px] font-mono">
+                      {trackIndex > 0 ? trackIndex : '?'} / {trackTotal}
+                    </p>
+                  )}
+                  {sessionTrack && (
+                    <FeedbackButtons
+                      track={sessionTrack}
+                      verdict={verdictFor(sessionTrack)}
+                      onToggle={(v) => toggleFeedback(sessionTrack, v, sessionIdForFeedback)}
+                    />
+                  )}
+                </div>
               </div>
             ) : currentSession ? (
               <p className="text-mc-lo text-[10px] mt-1.5">

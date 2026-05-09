@@ -172,14 +172,6 @@ export async function GET() {
   }
 
   // ─── Summary ───────────────────────────────────────────────────────────────
-  function statusOf(key: string): number | string {
-    const t = out[key] as Record<string, unknown> | undefined;
-    if (!t) return 'skipped';
-    const pj = t.postJson as FetchResult | undefined;
-    const put = t.putJson as FetchResult | undefined;
-    return pj?.status ?? put?.status ?? 'n/a';
-  }
-
   out.summary = {
     'POST private json': (out.test1_privatePost as Record<string,unknown>)?.postJson as FetchResult | undefined,
     'POST public json':  (out.test2_publicPost as Record<string,unknown>)?.postJson as FetchResult | undefined,

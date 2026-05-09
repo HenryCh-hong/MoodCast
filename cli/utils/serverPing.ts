@@ -11,8 +11,18 @@ export function getServerOrigin(): string {
   return new URL(redirectUri).origin;
 }
 
-export async function pingServer(timeoutMs = 1500): Promise<ServerStatus> {
-  const origin = getServerOrigin();
+export async function pingServer(
+  timeoutMsOrOpts: number | { timeoutMs?: number; origin?: string } = 1500,
+): Promise<ServerStatus> {
+  // Backwards-compatible: the previous signature was (timeoutMs?: number).
+  // The newer call form passes an options object so callers can probe a
+  // custom origin (used by `moodcast up --port`).
+  const opts =
+    typeof timeoutMsOrOpts === 'number'
+      ? { timeoutMs: timeoutMsOrOpts }
+      : timeoutMsOrOpts;
+  const timeoutMs = opts.timeoutMs ?? 1500;
+  const origin = opts.origin ?? getServerOrigin();
   const port = new URL(origin).port || '80';
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);

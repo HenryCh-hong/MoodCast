@@ -1,6 +1,10 @@
 #!/usr/bin/env tsx
 import { config } from 'dotenv';
-config({ path: '.env.local' });
+// `quiet: true` suppresses dotenv's `◇ injected env (N) from .env.local` log
+// line so daily-driver commands (bare `moodcast`, `moodcast up`, etc.)
+// don't open with developer noise. The MOODCAST_DEBUG env var re-enables
+// it for setup/troubleshooting.
+config({ path: '.env.local', quiet: !process.env.MOODCAST_DEBUG });
 
 import { Command } from 'commander';
 import { startCommand } from './commands/start.js';
@@ -9,6 +13,10 @@ import { playCommand } from './commands/play.js';
 import { shellCommand } from './commands/shell.js';
 import { authCommand } from './commands/auth.js';
 import { trackCommand } from './commands/track.js';
+import { upCommand } from './commands/up.js';
+import { setupCommand } from './commands/setup.js';
+import { appCommand } from './commands/app.js';
+import { shortcutCommand } from './commands/shortcut.js';
 import {
   calendarConnect,
   calendarDisconnect,
@@ -29,13 +37,57 @@ program
   .name('moodcast')
   .description('AI radio agent — terminal mode')
   .version('2.0.0')
-  // Bare `moodcast` (no subcommand) drops into the interactive shell.
-  .action(() => shellCommand());
+  // Bare `moodcast` is the daily app launcher: setup-check → ensure server
+  // online → open browser → drop into the interactive shell. To get just
+  // the shell with no server side-effects, run `moodcast shell`.
+  .option('--no-open', 'Skip opening the browser when launching the app')
+  .option('--path <path>', 'Open a specific subpath, e.g. /saved or /builder', '/')
+  .option(
+    '--port <port>',
+    'Override the port (default from SPOTIFY_REDIRECT_URI, usually 3001)',
+    (v) => parseInt(v, 10),
+  )
+  .action((opts: { open?: boolean; path?: string; port?: number }) =>
+    appCommand({
+      noOpen: opts.open === false,
+      openPath: opts.path,
+      port: opts.port,
+    }),
+  );
+
+program
+  .command('up')
+  .description('Boot the Moodcast dev server (if needed) and open the browser')
+  .option('--no-open', 'Skip opening the browser')
+  .option('--path <path>', 'Open a specific subpath, e.g. /saved or /builder', '/')
+  .option(
+    '--port <port>',
+    'Override the port (default from SPOTIFY_REDIRECT_URI, usually 3001)',
+    (v) => parseInt(v, 10),
+  )
+  .action((opts: { open?: boolean; path?: string; port?: number }) =>
+    upCommand({
+      noOpen: opts.open === false,
+      openPath: opts.path,
+      port: opts.port,
+    }),
+  );
+
+program
+  .command('setup')
+  .description('Run first-time setup: deps, .env.local, optional shell aliases')
+  .option('--yes', 'Run non-interactively (skip alias install / confirmations)')
+  .action((opts: { yes?: boolean }) => setupCommand({ yes: opts.yes }));
 
 program
   .command('shell')
-  .description('Open the interactive Moodcast shell')
+  .description('Open the interactive Moodcast shell only (no server / browser)')
   .action(() => shellCommand());
+
+program
+  .command('shortcut')
+  .description('Print copy-paste-ready Apple Shortcuts recipes for "Hey Siri, start Moodcast"')
+  .action(() => shortcutCommand());
 
 program
   .command('start')

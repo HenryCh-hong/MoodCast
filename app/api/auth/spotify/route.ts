@@ -1,5 +1,4 @@
 // app/api/auth/spotify/route.ts
-import { NextResponse } from 'next/server';
 import { getSpotifyAuthUrl } from '@/lib/spotify/auth';
 import crypto from 'crypto';
 

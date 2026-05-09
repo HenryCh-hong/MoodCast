@@ -226,11 +226,109 @@ This is a **deterministic pipeline with one conditional retry** — not an auton
 These are honest gaps — not hidden features.
 
 - Real RAG over listening history with embeddings and vector search.
-- Persistent feedback signals (like / skip / save) feeding the next session.
 - Stronger agentic planning via Claude tool use (search Spotify, fetch audio features, related artists from inside the LLM loop).
 - Audio-feature-aware energy arc (use Spotify's `audio_features` instead of keyword heuristics).
 - Hardware ambient lighting (Hue / HomeKit / Nanoleaf).
 - Cloud TTS as an alternative voice option.
+
+---
+
+## Music provider roadmap
+
+Moodcast was built around Spotify, but listeners outside its footprint
+deserve the same experience. The provider abstraction in
+`lib/music/providers/` is the seam we'll grow into.
+
+**Today, Spotify is the only provider that can drive playback inside
+Moodcast.** QQ Music and NetEase Cloud Music support is **planned**, not
+shipped — the safe fallback is a curated track list plus an "Open in
+&lt;provider&gt;" external search link. Full playback in the Moodcast page
+depends on each platform exposing an official, sanctioned, individually-
+developer-eligible API path. Research details and open questions live in
+[`docs/music-providers.md`](./docs/music-providers.md).
+
+| Provider              | Moodcast playback today | Fallback for now                            | Why                                                                                                                                |
+| --------------------- | ----------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Spotify               | **Yes** (Web Playback SDK, Premium) | n/a                                         | Official, documented, individual-developer eligible.                                                                               |
+| QQ Music              | No (under investigation)            | Curated list + "Open in QQ Music" search    | Official developer platform exists; QPlay playback is partner-cert gated (cars / speakers / TVs); web embed undocumented for 3P.   |
+| NetEase Cloud Music   | No (under investigation)            | Curated list + "Open in NetEase" search     | Official developer portal exists at `developer.music.163.com`; eligibility / scopes / playback surface unverified. Unofficial reverse-engineered libraries are out of scope.   |
+
+We do **not** ship reverse-engineered NetEase / QQ APIs, DRM bypass, or
+region-restriction workarounds — see "Why not unofficial APIs?" in the
+provider doc for the durable reasoning. Until an official integration
+path exists, the honest UX for Chinese-platform users is *"Moodcast
+curates, you open it in your existing app."*
+
+---
+
+## Feedback memory (like / dislike)
+
+Each track row in the web UI and the floating DJ companion has a 👍 / 👎
+control. Feedback is stored at `<MOODCAST_HOME>/feedback.json` (default
+`~/.moodcast/feedback.json`) so it persists across sessions and is shared
+between the web app and the terminal CLI.
+
+Future generations get a privacy-safe summary of the feedback — liked
+artists, repeatedly-disliked artists, intent preferences, and the set of
+exact track URIs to avoid repeating. Single dislikes never permanently ban
+an entire artist; the rule is "do not repeat exact disliked tracks unless
+the user explicitly asks for them, and gently favour what they've liked".
+
+Sandbox a fresh feedback file for testing with:
+
+```sh
+MOODCAST_HOME=$(mktemp -d) npm run test:feedback
+```
+
+---
+
+## Daily launch (`moodcast`)
+
+Once `npm run moodcast:setup` has installed the shell aliases, the daily
+flow is just one word:
+
+```sh
+moodcast
+```
+
+Bare `moodcast` is the **app launcher**, not just the shell. It does, in
+order:
+
+1. **Setup check.** If `.env.local` or `node_modules` is missing it prints
+   one compact line — `run: npm run moodcast:setup` — and stops. No setup
+   wizard noise from the daily command.
+2. **Server ensure.** Pings `127.0.0.1:3001`. Already responding? Skips to
+   step 3. Otherwise spawns `next dev` detached and waits for it.
+3. **Compact status.** A 3-line panel: `web online`, `shell ready`,
+   `MooC online` — no env panels, no alias previews, no dotenv noise.
+4. **Browser open** (best-effort — if `open` fails, the URL is printed,
+   never a crash).
+5. **Hand off to the interactive shell** for `start --auto`, `sessions`,
+   `resume`, etc. First-run users get a one-line "type `start --auto` to
+   broadcast" hint above the prompt; returning users go straight to the
+   bare prompt.
+
+### Variants
+
+```sh
+moodcast --no-open               # ensure server, drop into shell, skip browser
+moodcast --path /saved           # open straight to /saved
+moodcast --path /builder
+moodcast --port 3002             # use a different port (temporary; see caveat)
+moodcast up [...same flags...]   # web only — server + browser, no shell
+moodcast shell                   # shell only — no server / browser side-effects
+moodcast setup                   # first-run wizard (deps / .env.local / aliases)
+moodcast shortcut                # print Apple Shortcuts recipes for "Hey Siri, start Moodcast"
+moodcast status                  # spotify / device / now-playing
+```
+
+`moodcast up` and `moodcast shell` are still there for the times you want
+just one half. `moodcast setup` and `moodcast shortcut` are the two
+explicit-and-verbose commands; everything else stays quiet.
+
+For a Finder-clickable launcher and "Hey Siri, start Moodcast", see
+[`docs/command-setup.md`](./docs/command-setup.md) and
+[`docs/siri-shortcuts.md`](./docs/siri-shortcuts.md).
 
 ---
 
@@ -266,6 +364,74 @@ You're running Moodcast as a service.
 - The Spotify Client ID is public by design — it appears in the OAuth redirect URL — so it's safe to bake into a deployment. **Never** ship a client secret in the bundle or repo.
 - Provide at least one AI provider key as a server-side env var, or document that users must bring their own.
 - For automatic playlist track insertion, request **Spotify Extended Quota Mode** for your app. In Development Mode, Spotify may reject `POST /playlists/{id}/tracks`; Moodcast falls back to creating the playlist shell and showing a copyable track list. See `docs/spotify-quota.md`.
+
+---
+
+## 90-second demo walkthrough
+
+The shortest path through Moodcast — for a recorded demo, a code review, or
+a five-minute showcase. Assumes a one-time setup is already done (Spotify
+Premium connected, an AI provider key in `.env.local`).
+
+**0:00 — Launch.** In a terminal, type:
+
+```sh
+moodcast
+```
+
+A 3-line panel reports `web online`, `shell ready`, `MooC online`. The
+browser opens to the Moodcast home. The shell prompt is now waiting.
+
+**0:10 — Auto Tune.** From the prompt:
+
+```text
+moodcast> start --auto
+```
+
+Moodcast does *not* ask you to pick mood, activity, or tags. It reads the
+current moment — time, weather, coarse location, Apple Calendar rhythm if
+connected, your Spotify taste — and starts generating.
+
+**0:20 — Signal Scan.** The browser fades into the Signal Scan card: a
+live read of "what Moodcast knows about right now" — `late-night · weekend
+· clear · open evening · taste anchor: indie / folk`. This is the entire
+context the AI is about to receive, in plain English. No raw event titles,
+no GPS, no surveillance.
+
+**0:30 — Generated session.** A `MoodcastSession` lands in the broadcast
+dashboard:
+
+- **Session title** + 1-line subtitle.
+- **Opening monologue** — 2–4 sentences in DJ MOOC's voice.
+- **Energy arc** + **session arc phases** (e.g., *Warm intro → Deep cuts → Landing*).
+- **Track queue** with `sourceIntent` chips (familiar / fresh / discovery /
+  contextual) and one-line `whyItFits` per track.
+
+**0:55 — ON AIR.** Moodcast hands playback to the Spotify Web Playback
+SDK, verifies audio is actually playing on the chosen device, and the
+header flips to **ON AIR**. The floating MooC companion appears bottom-
+right with the now-playing track and the next transition cue.
+
+**1:10 — Like / dislike.** Hover any track — a 👍 / 👎 pair appears.
+Tapping 👎 on a track marks it as disliked in `~/.moodcast/feedback.json`
+(scrubbed of tokens; capped at 500 records). The next session won't
+replay that exact track and will gently lean toward what was liked.
+
+**1:25 — Saved session.** Open `/saved` in the browser, or run:
+
+```text
+moodcast> sessions
+```
+
+The session you just generated is in the shared library. Web and CLI see
+the same list. Tap or arrow-Enter to replay or resume any past session.
+
+**1:30 — Done.** Total elapsed: under 90 seconds. No login wall, no
+playlist export step, no manual tag fiddling.
+
+> Want to try without any setup? The landing page has a **Demo mode**
+> link that runs through this entire flow with prewritten sessions — no
+> Spotify, no AI key, no terminal needed.
 
 ---
 
@@ -443,7 +609,19 @@ You need an Apple app-specific password:
    moodcast calendar connect
    ```
 
-Credentials are stored locally at `~/.moodcast/apple-calendar.json` with `0600` permissions.
+#### How the credential is stored
+
+Your Apple ID and the app-specific password are written to
+`~/.moodcast/apple-calendar.json` as **plaintext JSON** with `0600` file
+permissions (owner read/write only). The file never leaves your machine —
+no Moodcast cloud, no analytics, no backups. The only network calls that
+ever see the password are direct CalDAV requests to `caldav.icloud.com`.
+
+This is acceptable for a single-user laptop. If you share the machine, or
+if Moodcast is being run on a multi-tenant host, treat the file as a
+secret on disk and revoke the app-specific password from
+[account.apple.com](https://account.apple.com) when you're done. Run
+`moodcast calendar disconnect` to delete the file completely.
 
 ---
 
@@ -516,6 +694,41 @@ Moodcast is bring-your-own-keys:
 - optionally connect Apple Calendar with an app-specific password
 
 Secrets live in `.env.local` and `~/.moodcast`. They are not exposed to the browser. `.env.local` and other `.env*` files are gitignored.
+
+---
+
+## Tests and evals
+
+Unit-level checks (no AI calls, sandboxed under a temp `MOODCAST_HOME`):
+
+```sh
+npm run test:queue       # playable-index ↔ raw-row queue mapping
+npm run test:feedback    # like/dislike persistence + privacy scrubbing
+npm run test:providers   # music provider abstraction + URL safety
+```
+
+Prompt-quality regression harness (calls the live AI provider — costs a
+few cents per full run, takes 1–3 minutes):
+
+```sh
+npm run eval:dry         # validate scenario set, no AI calls
+npm run eval             # run all 12 scenarios
+npm run eval -- --ids core-late-night-coding,replay-discover-with-taste
+```
+
+The eval harness lives at `scripts/eval/`. Each scenario fixes a
+(mood, activity, moment context, discovery dial, taste profile) input and
+declares expectations on:
+
+- track count
+- `sourceIntent` distribution (per-dial bounds from the prompt rules)
+- replay leakage (no top/recent track may sneak in unmarked)
+- structured-field schema (no missing/invalid `sourceIntent`, `energy`, etc.)
+- soft context alignment (mood/activity keyword matches; opener length)
+
+Run it before merging any change to `lib/ai/moodcastPrompt.ts` or
+`lib/ai/generateMoodcastSession.ts`. Add a scenario when you encounter a
+failure mode that the existing scenarios didn't catch.
 
 ---
 

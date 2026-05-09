@@ -323,9 +323,16 @@ async function dispatch(state: ShellState, line: string): Promise<void> {
 
 // ─── Entry point ──────────────────────────────────────────────────────────
 
-export async function shellCommand(): Promise<void> {
+export interface ShellCommandOptions {
+  /** When true, skip the entry banner — used when the bare `moodcast`
+   *  launcher has already printed a compact "online" panel and is handing
+   *  off to the shell. */
+  skipBanner?: boolean;
+}
+
+export async function shellCommand(opts: ShellCommandOptions = {}): Promise<void> {
   setShellMode(true);
-  printBanner();
+  if (!opts.skipBanner) printBanner();
 
   const rl = readline.createInterface({
     input: process.stdin,

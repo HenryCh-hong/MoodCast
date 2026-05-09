@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const jar = await cookies();
   jar.delete('spotify_access_token');
   jar.delete('spotify_refresh_token');

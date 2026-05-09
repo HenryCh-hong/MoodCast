@@ -45,8 +45,11 @@ function promptLine(question: string): Promise<string> {
 /**
  * Hidden-input prompt. Writes the question, reads stdin in raw mode, masks
  * each printable keystroke with `·`. Restores cooked mode on exit.
+ *
+ * Returns `null` if the user pressed Ctrl+C — callers should treat that as
+ * "user cancelled this flow" and unwind without killing the parent shell.
  */
-function promptHidden(question: string): Promise<string> {
+function promptHidden(question: string): Promise<string | null> {
   return new Promise((resolve) => {
     process.stdout.write(question);
     const stdin = process.stdin;
@@ -72,12 +75,17 @@ function promptHidden(question: string): Promise<string> {
           return;
         }
         if (c === '\x03') {
-          // Ctrl+C — abort cleanly.
+          // Ctrl+C — cancel this prompt only. The previous implementation
+          // called process.exit(130), which inside the interactive
+          // `moodcast` shell would kill the entire shell session. Instead
+          // we resolve with `null` so the caller can unwind the calendar
+          // flow and return to the shell prompt cleanly.
           stdin.off('data', onData);
           stdin.setRawMode(wasRaw);
           stdin.pause();
           process.stdout.write('\n');
-          process.exit(130);
+          resolve(null);
+          return;
         }
         if (c === '\x7f' || c === '\b') {
           if (buf.length > 0) {
@@ -114,6 +122,13 @@ export async function calendarConnect(): Promise<void> {
     return;
   }
   const password = await promptHidden('  App-specific password: ');
+  if (password === null) {
+    // User pressed Ctrl+C inside the masked prompt. Bail out of the
+    // calendar-connect flow without crashing the shell.
+    console.log(`  ${chalk.dim('cancelled')}`);
+    console.log('');
+    return;
+  }
   if (!password) {
     error('Password required.');
     console.log('');

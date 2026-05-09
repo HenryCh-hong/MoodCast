@@ -6,7 +6,7 @@
 //   - Raw event data (ICS text) is returned by `fetchEventsRaw()` and consumed
 //     ONLY by `lib/calendar/icsSummarize.ts`. Other call sites must not parse it.
 
-import { createDAVClient, fetchCalendars, fetchCalendarObjects } from 'tsdav';
+import { createDAVClient, fetchCalendarObjects } from 'tsdav';
 import {
   readAppleCredentials,
   writeAppleCredentials,

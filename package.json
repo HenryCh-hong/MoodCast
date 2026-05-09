@@ -8,7 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "moodcast": "tsx cli/index.ts",
-    "test:queue": "tsx tests/queueMapping.test.ts"
+    "moodcast:setup": "tsx cli/index.ts setup",
+    "moodcast:up": "tsx cli/index.ts up",
+    "test:queue": "tsx tests/queueMapping.test.ts",
+    "test:feedback": "tsx tests/feedback.test.ts",
+    "test:providers": "tsx tests/musicProviders.test.ts",
+    "eval": "tsx scripts/eval/runEval.ts",
+    "eval:dry": "tsx scripts/eval/runEval.ts --dry-run"
   },
   "bin": {
     "moodcast": "./cli/index.ts"

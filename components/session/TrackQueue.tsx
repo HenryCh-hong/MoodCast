@@ -6,6 +6,8 @@ import {
   playableToRawIndex,
 } from '@/lib/session/queueMapping';
 import { isValidSpotifyTrackUri } from '@/lib/spotify/uris';
+import { useFeedback } from '@/lib/hooks/useFeedback';
+import { FeedbackButtons } from '@/components/feedback/FeedbackButtons';
 
 interface TrackQueueProps {
   tracks: Track[];
@@ -25,6 +27,8 @@ interface TrackQueueProps {
    */
   onPlayTrack?: (index: number) => void;
   playbackPending?: boolean;
+  /** Optional id of the playing session — recorded with each feedback entry. */
+  sessionId?: string;
 }
 
 const FAMILIARITY_LABEL: Record<NonNullable<Track['familiarityLevel']>, string> = {
@@ -33,8 +37,9 @@ const FAMILIARITY_LABEL: Record<NonNullable<Track['familiarityLevel']>, string> 
   discovery: 'discovery',
 };
 
-export function TrackQueue({ tracks, sessionIndex, onPlayTrack, playbackPending }: TrackQueueProps) {
+export function TrackQueue({ tracks, sessionIndex, onPlayTrack, playbackPending, sessionId }: TrackQueueProps) {
   const mapping = useMemo(() => buildSessionQueueMapping(tracks), [tracks]);
+  const { verdictFor, toggle: toggleFeedback } = useFeedback();
 
   // NOW row is the raw index of the current playable position. NEXT row is
   // the raw index of (sessionIndex + 1). Both come from the canonical
@@ -59,9 +64,64 @@ export function TrackQueue({ tracks, sessionIndex, onPlayTrack, playbackPending 
           const opacity = isNow ? '' : isNext ? 'opacity-65' : 'opacity-40';
           const playable =
             typeof onPlayTrack === 'function' && isValidSpotifyTrackUri(track.uri ?? '');
+          const verdict = verdictFor(track);
 
-          const content = (
-            <div className={cn('flex items-start gap-4 w-full text-left', opacity)}>
+          const meta = (
+            <>
+              {track.transitionLine && i > 0 && (
+                <p
+                  className={cn(
+                    'text-[10px] font-bold tracking-tight mb-1',
+                    isNow ? 'text-mc-lo' : 'text-mc-dim',
+                  )}
+                >
+                  ↳ {track.transitionLine}
+                </p>
+              )}
+              <p className="text-[13px] font-bold tracking-tight text-mc-hi truncate">
+                {track.title}
+              </p>
+              <p className="text-[11px] font-bold tracking-tight text-mc-lo">{track.artist}</p>
+              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                {track.moodTag && (
+                  <span className="text-[9px] font-bold tracking-tight text-mc-dim">
+                    {track.moodTag}
+                  </span>
+                )}
+                {track.familiarityLevel && (
+                  <>
+                    <span className="text-[9px] text-mc-dim/40">·</span>
+                    <span className="text-[9px] font-bold tracking-[0.12em] uppercase text-mc-lav/80 border border-mc-border rounded px-1.5 py-0.5">
+                      {FAMILIARITY_LABEL[track.familiarityLevel]}
+                    </span>
+                  </>
+                )}
+              </div>
+              {track.whyThisSourceFits && (
+                <p
+                  className={cn(
+                    'text-[10px] font-bold tracking-tight mt-1 italic text-mc-dim',
+                  )}
+                >
+                  {track.whyThisSourceFits}
+                </p>
+              )}
+            </>
+          );
+
+          // Use a div as the row container so the feedback buttons can be
+          // real <button>s without being nested inside another <button>
+          // (invalid HTML and a screen-reader trap). Play-on-click sits on
+          // an inner button covering the text column only.
+          return (
+            <div
+              key={i}
+              className={cn(
+                'group flex items-start gap-4 w-full text-left rounded px-1 -mx-1 py-0.5 transition-colors',
+                opacity,
+                playable && 'hover:bg-mc-elevated/40',
+              )}
+            >
               <span
                 className={cn(
                   'text-[9px] font-bold tracking-[0.15em] w-12 shrink-0 pt-0.5',
@@ -70,78 +130,37 @@ export function TrackQueue({ tracks, sessionIndex, onPlayTrack, playbackPending 
               >
                 {label}
               </span>
-              <div className="flex-1 min-w-0">
-                {track.transitionLine && i > 0 && (
-                  <p
+              {playable ? (
+                <button
+                  type="button"
+                  onClick={() => onPlayTrack!(i)}
+                  disabled={playbackPending}
+                  aria-label={`Play track ${i + 1}: ${track.title} by ${track.artist}`}
+                  className="flex-1 min-w-0 text-left focus:outline-none focus:ring-1 focus:ring-mc-lav rounded disabled:cursor-progress"
+                >
+                  {meta}
+                </button>
+              ) : (
+                <div className="flex-1 min-w-0">{meta}</div>
+              )}
+              <div className="shrink-0 flex items-center gap-2 pt-0.5">
+                <FeedbackButtons
+                  track={track}
+                  verdict={verdict}
+                  onToggle={(v) => toggleFeedback(track, v, sessionId)}
+                />
+                {playable && (
+                  <span
+                    aria-hidden="true"
                     className={cn(
-                      'text-[10px] font-bold tracking-tight mb-1',
-                      isNow ? 'text-mc-lo' : 'text-mc-dim',
+                      'text-[14px] leading-none transition-opacity',
+                      isNow ? 'text-mc-lav opacity-100' : 'text-mc-mid opacity-0 group-hover:opacity-100',
                     )}
                   >
-                    ↳ {track.transitionLine}
-                  </p>
-                )}
-                <p className="text-[13px] font-bold tracking-tight text-mc-hi truncate">
-                  {track.title}
-                </p>
-                <p className="text-[11px] font-bold tracking-tight text-mc-lo">{track.artist}</p>
-                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                  {track.moodTag && (
-                    <span className="text-[9px] font-bold tracking-tight text-mc-dim">
-                      {track.moodTag}
-                    </span>
-                  )}
-                  {track.familiarityLevel && (
-                    <>
-                      <span className="text-[9px] text-mc-dim/40">·</span>
-                      <span className="text-[9px] font-bold tracking-[0.12em] uppercase text-mc-lav/80 border border-mc-border rounded px-1.5 py-0.5">
-                        {FAMILIARITY_LABEL[track.familiarityLevel]}
-                      </span>
-                    </>
-                  )}
-                </div>
-                {track.whyThisSourceFits && (
-                  <p
-                    className={cn(
-                      'text-[10px] font-bold tracking-tight mt-1 italic text-mc-dim',
-                    )}
-                  >
-                    {track.whyThisSourceFits}
-                  </p>
+                    ▶
+                  </span>
                 )}
               </div>
-              {playable && (
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'shrink-0 text-[14px] leading-none pt-1 transition-opacity',
-                    isNow ? 'text-mc-lav opacity-100' : 'text-mc-mid opacity-0 group-hover:opacity-100',
-                  )}
-                >
-                  ▶
-                </span>
-              )}
-            </div>
-          );
-
-          if (playable) {
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => onPlayTrack!(i)}
-                disabled={playbackPending}
-                aria-label={`Play track ${i + 1}: ${track.title} by ${track.artist}`}
-                className="group w-full text-left rounded px-1 -mx-1 py-0.5 hover:bg-mc-elevated/40 focus:outline-none focus:ring-1 focus:ring-mc-lav transition-colors disabled:cursor-progress"
-              >
-                {content}
-              </button>
-            );
-          }
-
-          return (
-            <div key={i}>
-              {content}
             </div>
           );
         })}

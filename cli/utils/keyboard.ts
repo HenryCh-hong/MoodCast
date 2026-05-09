@@ -28,7 +28,6 @@ export function startKeyboard(onKey: (key: Key, raw: string) => void): () => voi
       onKey(key, data);
     } catch (e) {
       // Don't crash the dashboard from a key handler error
-      // eslint-disable-next-line no-console
       console.error('keyboard handler error:', e);
     }
   };

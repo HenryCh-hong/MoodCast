@@ -26,9 +26,6 @@ const GROUP_LABEL: Record<TagGroup, string> = {
   familiarity: 'discover',
 };
 
-const ANSI_RE = /\x1b\[[0-9;]*m/g;
-const visibleLength = (s: string) => s.replace(ANSI_RE, '').length;
-
 export async function pickTags(
   suggested: SuggestedTagSet
 ): Promise<SelectedTagSet | null> {
